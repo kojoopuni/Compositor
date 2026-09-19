@@ -58,6 +58,11 @@ struct TextLayerItems: View {
             .disabled(!session.canEditLayers || session.document == nil)
         Button("Edit Text…") { if let id = session.activeLayerID { TextPanelController.shared.edit(id, in: session) } }
             .disabled(!session.canEditLayers || session.activeText == nil)
+        Menu("Layer Effects") {
+            ForEach(LayerEffect.Kind.allCases, id: \.self) { kind in
+                Button("\(kind.rawValue)…") { EffectPanelController.shared.add(kind, in: session) }
+            }
+        }.disabled(!session.canAddLayerEffect)
         Divider()
     }
 }
