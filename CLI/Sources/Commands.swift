@@ -16,6 +16,7 @@ enum Commands {
         case "info": return try await info(rest)
         case "new": return try await new(rest)
         case "import-psd": return try await importPSD(rest)
+        case "run-action": return try await runAction(rest)
         case "add-layer": return try await addLayer(rest)
         case "set-layer": return try await setLayer(rest)
         case "add-text": return try await addText(rest)
@@ -76,6 +77,7 @@ enum Commands {
 
           info             <project>
           new              <project> --width W --height H [--overwrite]
+          run-action       <action.json> <project.comp> [--set key=value …] [--dry-run]
           import-psd       <file.psd> --out project.comp [--overwrite]
           add-layer        <project> <image> [--name N] [placement] [appearance]
           add-blank-layer  <project> [--name N] [--above LAYER]

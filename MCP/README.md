@@ -26,6 +26,10 @@ The server uses `CLI/build/Release/compositor-cli`, falling back to the Debug bu
 | `compositor_tile_preview` | Returns the canvas repeated as tiles, for judging seams and repetition |
 | `compositor_sample_color` | The color at one pixel, as the eyedropper reads it |
 | `compositor_new_project` | A new transparent canvas |
+| `compositor_import_psd` | Opens a Photoshop document as a project: layers, folders, masks, opacity, blend modes |
+| `compositor_run_action` | Replays a saved list of steps on a project |
+| `compositor_add_text` / `compositor_set_text` | Live text layers |
+| `compositor_add_layer_effect` | Drop shadow, outer glow or stroke, as a layer beneath its source |
 | `compositor_add_image_layer` | An image file as a new layer, placed, scaled, blended |
 | `compositor_add_empty_layer` | A blank layer or a folder |
 | `compositor_set_layer` | Name, visibility, position, size, rotation, flips, opacity, blend mode |

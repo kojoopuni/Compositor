@@ -68,7 +68,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 39);
+    assert.equal(tools.length, 41);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -209,6 +209,19 @@ try {
     assert.ok(!toned.failed, JSON.stringify(toned.content));
   });
 
+  await test("saved actions replay, and non-Photoshop files are refused", async () => {
+    const wall = path.join(folder, "wall.comp"), action = path.join(folder, "soften.json");
+    await call("compositor_new_project", { project: wall, width: 64, height: 64 });
+    await call("compositor_add_image_layer", { project: wall, image: path.join(folder, "gray.png"), name: "Wall" });
+    await writeFile(action, JSON.stringify({ name: "Soften", steps: [["filter", "{project}", "{layer}", "Gaussian Blur", "--radius", "2", "--keep-edges"], ["export", "{project}", "--out", "{folder}/{name}_soft.png"]] }));
+    const planned = await call("compositor_run_action", { action, project: wall, values: { layer: "Wall" }, dry_run: true });
+    assert.equal(planned.data?.steps.length, 2);
+    const ran = await call("compositor_run_action", { action, project: wall, values: { layer: "Wall" } });
+    assert.ok(!ran.failed && ran.data?.action === "Soften", JSON.stringify(ran.content));
+    const notPSD = await call("compositor_import_psd", { psd: path.join(folder, "gray.png"), project: path.join(folder, "x.comp") });
+    assert.ok(notPSD.failed && /not a Photoshop document/.test(notPSD.content[0].text ?? ""));
+  });
+
   await test("live tools say how to switch control on when the app is not listening", async () => {
     const status = await call("compositor_live_status", {});
     // With the app closed this must fail helpfully; with it open and control on, it answers.
@@ -226,7 +239,7 @@ try {
     assert.ok(subject.failed && /subject/i.test(subject.content[0].text ?? ""));
   });
 
-  console.log(`${passed} of 10 passed`);
+  console.log(`${passed} of 11 passed`);
 } finally {
   await client.close();
   await rm(folder, { recursive: true, force: true });

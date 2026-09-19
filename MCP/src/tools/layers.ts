@@ -32,6 +32,59 @@ export function registerLayerTools(server: McpServer) {
   );
 
   server.registerTool(
+    "compositor_import_psd",
+    {
+      title: "Open a Photoshop document as a project",
+      description:
+        "Reads a .psd and writes a .comp project with its layers, names, positions, visibility, opacity, blend modes, " +
+        "folders and layer masks (the app's File > Open Photoshop Document…). The .psd is never changed. One way only: " +
+        "text and smart objects arrive as pixels, layer styles are dropped, and adjustment and fill layers — which " +
+        "have no pixels — are skipped and listed in the result; when anything was skipped or a vector mask was left " +
+        "behind, Photoshop's own flattened picture is added as a top layer named as a reference, so the project looks " +
+        "right: tell the user, and hide that layer to work with the real ones. Covers 8-bit RGB and grayscale files; " +
+        "16-bit, CMYK and .psb are refused with a reason.",
+      inputSchema: {
+        psd: z.string().min(1).describe("The Photoshop document."),
+        project,
+        overwrite: z.boolean().optional().describe("Replace an existing project at that path."),
+      },
+      annotations: DESTROYS,
+    },
+    async ({ psd, project, overwrite }) => {
+      try { return ok(await run("import-psd", [resolvePath(psd), ...options({ out: resolvePath(project), overwrite }, ["overwrite"])])); }
+      catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
+    "compositor_run_action",
+    {
+      title: "Replay a saved action on a project",
+      description:
+        "Runs an action file — a JSON list of compositor-cli steps, e.g. {\"name\": \"Game-ready\", \"steps\": " +
+        "[[\"make-tileable\", \"{project}\", \"{layer}\"], [\"export\", \"{project}\", \"--out\", " +
+        "\"{folder}/{name}_albedo.png\"]]} — on a project. {project}, {folder} and {name} are filled in; any other " +
+        "{word} comes from values. Use it to repeat the same preparation across many files, and write such a file " +
+        "for the user when they ask to do the same thing again later (run `compositor-cli help` for the step names). " +
+        "dry_run shows what would run. If a step fails, the ones before it have already been applied, and the error " +
+        "says which. Actions have no screen in the app yet.",
+      inputSchema: {
+        action: z.string().min(1).describe("The action's JSON file."),
+        project,
+        values: z.record(z.string()).optional().describe("Values for the action's own placeholders, e.g. {\"layer\": \"Wall\"}."),
+        dry_run: z.boolean().optional(),
+      },
+      annotations: DESTROYS,
+    },
+    async ({ action, project, values, dry_run }) => {
+      try {
+        const sets = Object.entries(values ?? {}).flatMap(([key, value]) => ["--set", `${key}=${value}`]);
+        return ok(await run("run-action", [resolvePath(action), resolvePath(project), ...sets, ...(dry_run ? ["--dry-run"] : [])]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
     "compositor_add_image_layer",
     {
       title: "Add an image as a layer",
