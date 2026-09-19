@@ -63,6 +63,37 @@ export function registerPixelTools(server: McpServer) {
   );
 
   server.registerTool(
+    "compositor_cutout",
+    {
+      title: "Cut a subject out of a photo in one step",
+      description:
+        "The quick path for 'remove the background from this image': takes an image file and writes its subject on " +
+        "transparency as a PNG, cropped to the subject. The source file is not changed. Give project as well to keep " +
+        "the layered project, where the background is still there behind an editable mask; do that whenever the user " +
+        "may want to touch up the result. For several images, call this once per image. Afterwards, open the PNG's " +
+        "project with compositor_render_view, or tell the user plainly, if the detector is likely to have missed " +
+        "enclosed gaps (between an arm and the body, through a handle): it often does. Fails with a clear message " +
+        "when the image has no distinct subject.",
+      inputSchema: {
+        image: z.string().min(1).describe("Image file to cut out: JPEG, PNG, HEIC or TIFF."),
+        output: z.string().min(1).describe("PNG file to write, e.g. ~/Desktop/portrait (cutout).png. Overwrites an existing file."),
+        padding: z.number().min(0).optional().describe("Transparent margin to leave around the subject, in pixels (default 0)."),
+        edge: z.enum(["clean", "soft"]).default("clean").describe("clean: crisp outline scaled to the image size. soft: the detector's raw mask."),
+        project: z.string().min(1).optional().describe("Also save the layered .comp project here."),
+        overwrite: z.boolean().optional().describe("Replace an existing project at that path."),
+      },
+      annotations: { ...EDITS, idempotentHint: true },
+    },
+    async ({ image, output, padding, edge, project, overwrite }) => {
+      try {
+        return ok(await run("cutout", [resolvePath(image), ...options({
+          out: resolvePath(output), padding, edge, project: project ? resolvePath(project) : undefined, overwrite,
+        }, ["overwrite"])]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
     "compositor_add_adjustment",
     {
       title: "Add an adjustment layer",

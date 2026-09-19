@@ -21,6 +21,8 @@ enum Commands {
         case "add-folder": return try await addEmptyLayer(rest, folder: true)
         case "add-blank-layer": return try await addEmptyLayer(rest, folder: false)
         case "move-layer": return try await moveLayer(rest)
+        case "crop": return try await crop(rest)
+        case "cutout": return try await cutout(rest)
         case "resize": return try await resize(rest)
         case "canvas-size": return try await canvasSize(rest)
         case "subject-mask": return try await subjectMask(rest)
@@ -78,6 +80,8 @@ enum Commands {
           add-adjustment   <project> "<kind>" [--above LAYER] [--name N] [Levels: --black --gamma --white
                            --output-black --output-white | Hue/Saturation: --hue --saturation --lightness
                            --colorize | Exposure: --exposure --offset --gamma]
+          crop             <project> --box x,y,w,h | --to-content [--padding PX]
+          cutout           <image> --out subject.png [--padding PX] [--edge clean|soft] [--project keep.comp]
           resize           <project> --width W | --height H | --scale PERCENT [--resolution PPI] [--sampling S]
           canvas-size      <project> [--width W] [--height H] [--anchor center|top-left|...]
           render           <project> --out view.png [--region x,y,w,h] [--max-size PX]
