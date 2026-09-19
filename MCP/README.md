@@ -32,6 +32,7 @@ The server uses `CLI/build/Release/compositor-cli`, falling back to the Debug bu
 | `compositor_move_layer` | Reorder, or move into and out of folders |
 | `compositor_delete_layer` | Remove a layer |
 | `compositor_set_mask` | Set a mask from a grayscale image, switch it, or remove it |
+| `compositor_make_tileable` | Evens a texture's lighting and heals its seams so it repeats cleanly |
 | `compositor_cutout` | One step from a photo to its subject on transparency, cropped to the subject |
 | `compositor_crop` | Crop to a box, or to the visible content; layers keep their pixels |
 | `compositor_remove_background` | Hide a layer's background behind a mask (on-device) |

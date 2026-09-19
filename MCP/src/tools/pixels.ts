@@ -94,6 +94,32 @@ export function registerPixelTools(server: McpServer) {
   );
 
   server.registerTool(
+    "compositor_make_tileable",
+    {
+      title: "Make a texture layer tile without seams",
+      description:
+        "Rewrites one layer so it repeats cleanly: evens out broad lighting differences (a texture brighter on one " +
+        "side can never tile), slides the pixels half way round so the seams meet in the middle, rebuilds a " +
+        "cross-shaped band over them from the surrounding texture, and slides them back. Works best on fairly " +
+        "uniform surfaces (stone, soil, bark, fabric, plaster); distinct objects crossing the seam band will be " +
+        "smeared. Always judge the result with compositor_tile_preview, looking for strips along the tile joins " +
+        "(try a wider or narrower band) and for features that repeat too obviously. The layer should fill the " +
+        "canvas and be unrotated. There is no undo from here, so work on a copy of a texture you cannot regenerate.",
+      inputSchema: {
+        project, layer,
+        band: z.number().min(2).max(40).optional().describe("Width of the rebuilt band, as a percentage of the layer's shorter side (default 12)."),
+        keep_lighting: z.boolean().optional().describe("Skip the lighting step, for a texture whose broad light and dark areas are part of its look."),
+      },
+      annotations: DESTROYS,
+    },
+    async ({ project, layer, band, keep_lighting }) => {
+      try {
+        return ok(await run("make-tileable", [resolvePath(project), layer, ...options({ band, "keep-lighting": keep_lighting }, ["keep-lighting"])]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
     "compositor_add_adjustment",
     {
       title: "Add an adjustment layer",
