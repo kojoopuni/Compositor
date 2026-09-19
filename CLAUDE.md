@@ -17,6 +17,16 @@ TEST_RUNNER_BRUSH_BENCHMARK=1 xcodebuild … -parallel-testing-enabled NO \
   -only-testing:CompositorTests/BrushPerformanceTests test
 ```
 
+### Baseline (upstream `a19db90`, 2026-09-18)
+
+288 tests. Upstream's suite did not compile; branch `fix/stale-tests` brings seven stale tests back in line with the app. Three tests still fail on unmodified app code, and are the regression baseline — anything else failing is ours:
+
+- `LayerAppearanceTests.blendModesAndOpacityMatchKnownPixels` — Color Dodge of 0.8 over 0.4 exports as 0.616, not 1.0. Looks like a real rendering bug since Color Dodge/Burn moved to `SeparableBlend`.
+- `LevelsTests.inputClippingGammaOutputInversionAndAlpha` — inverted output on a half-transparent pixel gives `[0, 32, 64]`, not `[64, 96, 128]`. Looks like a real regression from "Fix dark soft edges in Hue/Saturation and Levels".
+- `CursorTests.optionOverALayerRowOffersDuplicatingExceptOverThumbnails` — compares `NSCursor.current`, which depends on the test window being frontmost; may be environmental.
+
+`SelectionEditTests.invertIsFast…` has a 1.5 s time limit and fails only under parallel load; run suites with `-parallel-testing-enabled NO` when timing matters.
+
 ## Rules that keep the fork mergeable
 
 Upstream commits daily, mostly to `Rendering/EditorCanvas.swift`, `Document/EditorSession.swift`, `ContentView.swift`, `CompositorApp.swift`, `UI/NativeLayerList.swift` and `project.pbxproj`.
