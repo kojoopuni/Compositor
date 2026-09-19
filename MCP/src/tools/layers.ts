@@ -143,6 +143,34 @@ export function registerLayerTools(server: McpServer) {
   );
 
   server.registerTool(
+    "compositor_crop",
+    {
+      title: "Crop the canvas",
+      description:
+        "Crops the document to a box, or with to_content to everything that is not transparent in the finished " +
+        "picture (after compositor_remove_background, that is the subject), with optional padding. Layers keep all " +
+        "their pixels, so growing the canvas later with compositor_resize brings back what was cropped away. " +
+        "Returns the box that was kept, in the old document's pixels. " + SAVED_NOTE,
+      inputSchema: {
+        project,
+        box: z.object({ x: z.number(), y: z.number(), width: z.number().positive(), height: z.number().positive() })
+          .optional().describe("The part of the canvas to keep, in document pixels."),
+        to_content: z.boolean().optional().describe("Crop to the visible content instead of a box."),
+        padding: z.number().min(0).optional().describe("With to_content: pixels of margin to leave around the content."),
+      },
+      annotations: EDITS,
+    },
+    async ({ project, box, to_content, padding }) => {
+      try {
+        if (!box && !to_content) throw new Error("give box or to_content");
+        return ok(await run("crop", [resolvePath(project), ...options({
+          box: box ? `${box.x},${box.y},${box.width},${box.height}` : undefined, "to-content": to_content, padding,
+        }, ["to-content"])]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
     "compositor_resize",
     {
       title: "Resize the whole document",

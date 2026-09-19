@@ -219,6 +219,38 @@ def renders_and_exports_write_files_of_the_right_size(folder):
 
 
 @test
+def cropping_keeps_pixels_and_finds_the_content(folder):
+    project = os.path.join(folder, "crop.comp")
+    run("new", project, "--width", 100, "--height", 100)
+    run("add-layer", project, os.path.join(folder, "red.png"), "--name", "Red", "--x", 50, "--y", 20)
+    assert run("crop", project, "--to-content", "--padding", 5) == {"x": 45, "y": 15, "width": 50, "height": 50}
+    assert near(sample(project, 5, 5), (255, 0, 0, 255)) and sample(project, 2, 2)[3] == 0
+    assert run("crop", project, "--box", "5,5,20,10") == {"x": 5, "y": 5, "width": 20, "height": 10}
+    assert near(sample(project, 0, 0), (255, 0, 0, 255))
+    run("canvas-size", project, "--width", 60, "--height", 60, "--anchor", "top-left")
+    assert near(sample(project, 35, 30), (255, 0, 0, 255)), "growing the canvas brings back what the crop hid"
+    assert "--box" in refused("crop", project)
+    blank = os.path.join(folder, "blank.comp")
+    run("new", blank, "--width", 10, "--height", 10)
+    assert "transparent" in refused("crop", blank, "--to-content")
+
+
+@test
+def a_cutout_is_one_step_from_photo_to_cropped_subject(folder):
+    photo = "/Library/User Pictures/Animals/Eagle.heic"
+    if not os.path.exists(photo):
+        return
+    output = os.path.join(folder, "eagle.png"), os.path.join(folder, "eagle.comp")
+    result = run("cutout", photo, "--out", output[0], "--padding", 4, "--project", output[1])
+    assert result["from"] == {"width": 512, "height": 512} and result["width"] <= 512 and result["height"] <= 512
+    assert os.path.getsize(output[0]) > 1000
+    assert [layer["mask"] for layer in layers(output[1]) if layer["name"] == "Photo"] == ["enabled"]
+    assert sample(output[1], 0, 0)[3] == 0, "the corner is background, hidden behind the mask"
+    assert ".png" in refused("cutout", photo, "--out", os.path.join(folder, "eagle.jpg"))
+    assert "subject" in refused("cutout", os.path.join(folder, "gray.png"), "--out", os.path.join(folder, "flat.png")).lower()
+
+
+@test
 def a_layer_with_no_subject_says_so(folder):
     project = os.path.join(folder, "subject.comp")
     run("new", project, "--width", 64, "--height", 64)

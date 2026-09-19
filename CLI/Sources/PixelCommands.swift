@@ -26,7 +26,7 @@ extension Commands {
         settings.gaussian = arguments.flag("gaussian")
         settings.monochromatic = arguments.flag("monochromatic")
         try read(&settings.exposure, arguments)
-        try await apply(kind, settings, in: workspace)
+        try await apply(kind, settings, in: workspace.session)
         try await workspace.save()
         return try json(["filtered": layer.id.uuidString, "filter": kind.rawValue])
     }
@@ -47,7 +47,7 @@ extension Commands {
         if let value = try arguments.number("refine") { settings.refineEdges = value }
         if let value = try arguments.number("contrast") { settings.matteContrast = value }
         if let value = try arguments.number("shift") { settings.shiftEdge = value }
-        try await apply(.removeBackground, settings, in: workspace)
+        try await apply(.removeBackground, settings, in: workspace.session)
         try await workspace.save()
         return try json(["masked": layer.id.uuidString, "edge": edge, "refine": settings.refineEdges,
                          "contrast": settings.matteContrast, "shift": settings.shiftEdge])
@@ -66,8 +66,7 @@ extension Commands {
         return settings
     }
 
-    private static func apply(_ kind: FilterKind, _ settings: FilterSettings, in workspace: Workspace) async throws {
-        let session = workspace.session
+    static func apply(_ kind: FilterKind, _ settings: FilterSettings, in session: EditorSession) async throws {
         session.beginFilter(kind)
         guard session.filterEdit != nil else {
             throw CommandError("\(kind.rawValue) needs a single visible layer with pixels")

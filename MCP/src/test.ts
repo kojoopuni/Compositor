@@ -51,7 +51,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 16);
+    assert.equal(tools.length, 18);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -100,6 +100,19 @@ try {
     assert.equal(exported.data?.width, 32);
   });
 
+  await test("crop and the one-step cutout work", async () => {
+    const scene = path.join(folder, "crop.comp");
+    await call("compositor_new_project", { project: scene, width: 100, height: 100 });
+    await call("compositor_add_image_layer", { project: scene, image: path.join(folder, "red.png"), name: "Red", x: 40, y: 10 });
+    const cropped = await call("compositor_crop", { project: scene, to_content: true, padding: 2 });
+    assert.deepEqual(cropped.data, { x: 38, y: 8, width: 36, height: 36 });
+    const needs = await call("compositor_crop", { project: scene });
+    assert.ok(needs.failed && /box or to_content/.test(needs.content[0].text ?? ""));
+    const eagle = "/Library/User Pictures/Animals/Eagle.heic";
+    const cut = await call("compositor_cutout", { image: eagle, output: path.join(folder, "eagle.png"), project: path.join(folder, "eagle.comp") });
+    assert.ok(!cut.failed && cut.data?.width <= 512 && cut.data?.project, JSON.stringify(cut.data ?? cut.content));
+  });
+
   await test("mistakes come back as errors that say what to do", async () => {
     const missing = await call("compositor_set_layer", { project, layer: "Nope", opacity: 50 });
     assert.ok(missing.failed && /no layer/.test(missing.content[0].text ?? ""));
@@ -111,7 +124,7 @@ try {
     assert.ok(subject.failed && /subject/i.test(subject.content[0].text ?? ""));
   });
 
-  console.log(`${passed} of 5 passed`);
+  console.log(`${passed} of 6 passed`);
 } finally {
   await client.close();
   await rm(folder, { recursive: true, force: true });
