@@ -29,3 +29,7 @@ CLI/build/
 # MCP server
 MCP/node_modules/
 MCP/dist/
+
+# Fork app build output
+Fork/build/
+Fork/build.log
