@@ -14,6 +14,12 @@ enum Commands {
         let rest = Array(arguments.dropFirst())
         switch name {
         case "info": return try await info(rest)
+        case "new": return try await new(rest)
+        case "add-layer": return try await addLayer(rest)
+        case "set-layer": return try await setLayer(rest)
+        case "delete-layer": return try await deleteLayer(rest)
+        case "render": return try await render(rest)
+        case "export": return try await export(rest)
         default: throw CommandError("unknown command '\(name)'")
         }
     }
