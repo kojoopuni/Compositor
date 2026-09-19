@@ -35,3 +35,11 @@ struct TilePreviewItem: View {
             .disabled(session.document == nil)
     }
 }
+
+/// Compositor menu: whether an assistant on this Mac may drive the app. Off until the user turns it on.
+struct AssistantControlItem: View {
+    @AppStorage(ControlServer.enabledKey) private var enabled = false
+    var body: some View {
+        Toggle("Allow Assistant Control", isOn: Binding(get: { enabled }, set: { ControlServer.shared.setEnabled($0) }))
+    }
+}
