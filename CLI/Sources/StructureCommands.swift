@@ -9,6 +9,7 @@ extension Commands {
     static func resize(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let url = try arguments.url(0, "the project")
+        let opened = Workspace.lastWritten(url)
         let snapshot = try await ProjectStore.shared.load(from: url)
         let old = snapshot.manifest
         var width = Double(old.width), height = Double(old.height)
@@ -25,7 +26,7 @@ extension Commands {
                                        resolution: try arguments.number("resolution") ?? old.resolution ?? 72)
         if let text = arguments.string("sampling") { options.sampling = try sampling(text) }
         let resized = try await ImageResizer.shared.resize(snapshot, to: options)
-        try await ProjectStore.shared.save(resized, to: url)
+        try await Workspace.save(resized, to: url, opened: opened)
         return try json(["width": resized.manifest.width, "height": resized.manifest.height])
     }
 
@@ -34,6 +35,7 @@ extension Commands {
     static func canvasSize(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let url = try arguments.url(0, "the project")
+        let opened = Workspace.lastWritten(url)
         let snapshot = try await ProjectStore.shared.load(from: url)
         guard let width = try arguments.integer("width") ?? Optional(snapshot.manifest.width),
               let height = try arguments.integer("height") ?? Optional(snapshot.manifest.height),
@@ -49,7 +51,7 @@ extension Commands {
             options.anchor = index
         }
         let resized = try await CanvasResizer.shared.resize(snapshot, to: options)
-        try await ProjectStore.shared.save(resized, to: url)
+        try await Workspace.save(resized, to: url, opened: opened)
         return try json(["width": resized.manifest.width, "height": resized.manifest.height])
     }
 
