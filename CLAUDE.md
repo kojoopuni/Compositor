@@ -27,6 +27,22 @@ TEST_RUNNER_BRUSH_BENCHMARK=1 xcodebuild … -parallel-testing-enabled NO \
 
 `SelectionEditTests.invertIsFast…` has a 1.5 s time limit and fails only under parallel load; run suites with `-parallel-testing-enabled NO` when timing matters.
 
+## Command-line tool (`CLI/`, fork-only)
+
+`compositor-cli` is the app's engine without a window, built from its own project so `Compositor.xcodeproj` is never edited. It compiles everything under `Compositor/` except `UI/` and the handful of files that build views or windows.
+
+```sh
+python3 CLI/make_project.py      # regenerate the project; run after merging upstream (new UI files are excluded from disk)
+python3 CLI/Tests/run.py         # build, then run the end-to-end tests
+CLI/build/Debug/compositor-cli help
+```
+
+- If upstream adds a file outside `UI/` that needs a window, the CLI build fails on it: add it to `WINDOWED` in `CLI/make_project.py`.
+- Commands open the project into a bare `EditorSession` and call the same methods the app does (`Workspace.swift`), so edits follow the app's rules. Resizing uses the `ImageResizer`/`CanvasResizer` actors on the saved snapshot.
+- Automatic filters (Remove Background) commit only after their preview settles; `Commands.apply` waits for that.
+- The app's blurs spread past a layer's edges, so blurring a full-canvas layer fades its border. Texture work needs a clamp or wrap option (Phase 3).
+- Never edit a `.comp` from the CLI while the app has it open with unsaved changes.
+
 ## Rules that keep the fork mergeable
 
 Upstream commits daily, mostly to `Rendering/EditorCanvas.swift`, `Document/EditorSession.swift`, `ContentView.swift`, `CompositorApp.swift`, `UI/NativeLayerList.swift` and `project.pbxproj`.

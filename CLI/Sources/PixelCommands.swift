@@ -55,11 +55,21 @@ extension Commands {
         }
         session.updateFilter(settings, preview: true)
         await session.commitFilter()
+        // An automatic filter commits only once its preview has settled, and the change of settings above may have
+        // queued a second one behind the first.
+        var waits = 0
+        while let edit = session.filterEdit, edit.previewError == nil, waits < 8 {
+            await edit.previewTask?.value
+            await session.commitFilter()
+            waits += 1
+        }
         if let edit = session.filterEdit {
             let reason = edit.previewError ?? "the filter could not be applied"
             session.cancelFilter()
             throw CommandError(reason)
         }
+        // A failure while committing is shown in the app as a brush error.
+        if let reason = session.brushError { throw CommandError(reason) }
     }
 
     /// compositor-cli add-adjustment <project> <kind> [--above <layer>] [settings]

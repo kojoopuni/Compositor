@@ -59,6 +59,27 @@ extension Commands {
         return try json(["exported": output.path, "width": snapshot.manifest.width, "height": snapshot.manifest.height])
     }
 
+    /// The finished picture's color at --at x,y in document pixels, as the eyedropper would read it: red, green,
+    /// blue and alpha, each 0–255, not premultiplied.
+    static func sample(_ raw: [String]) async throws -> String {
+        let arguments = Arguments(raw)
+        let workspace = try await Workspace.open(try arguments.url(0, "the project"))
+        let parts = (arguments.string("at") ?? "").split(separator: ",").compactMap { Int($0) }
+        guard parts.count == 2 else { throw CommandError("sample needs --at x,y in document pixels") }
+        let image = try await ImageExporter.shared.render(try workspace.snapshot()).image
+        guard (0..<image.width).contains(parts[0]), (0..<image.height).contains(parts[1]),
+              let pixel = image.cropping(to: CGRect(x: parts[0], y: parts[1], width: 1, height: 1)),
+              let context = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = context.data else { throw CommandError("--at falls outside the canvas") }
+        context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let bytes = data.assumingMemoryBound(to: UInt8.self)
+        let alpha = Double(bytes[3])
+        func straight(_ value: UInt8) -> Int { alpha == 0 ? 0 : min(255, Int((Double(value) * 255 / alpha).rounded())) }
+        return try json(["red": straight(bytes[0]), "green": straight(bytes[1]), "blue": straight(bytes[2]), "alpha": Int(alpha)])
+    }
+
     private static func scaled(_ image: CGImage, longestSide: Int) throws -> CGImage {
         let factor = CGFloat(longestSide) / CGFloat(max(image.width, image.height))
         let width = max(1, Int((CGFloat(image.width) * factor).rounded())), height = max(1, Int((CGFloat(image.height) * factor).rounded()))
