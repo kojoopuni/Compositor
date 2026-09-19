@@ -40,19 +40,24 @@ export function registerPixelTools(server: McpServer) {
       description:
         "Finds the layer's foreground subject on-device and hides everything else behind a layer mask. No pixels are " +
         "erased: disable or remove the mask with compositor_set_mask to get the background back. Fails with a clear " +
-        "message when the image has no distinct subject. Use advanced for hair, fur and fine edges.",
+        "message when the image has no distinct subject. The default 'clean' edge gives a crisp outline sized to the " +
+        "image; 'soft' is the detector's raw mask, which is hazy on large images. Afterwards, check the edge at full " +
+        "resolution with compositor_render_view and a region around the subject's outline, not only the whole canvas: " +
+        "look for a hazy fringe (lower shift, e.g. -2, or raise contrast), a hard scissor-cut look (raise refine, " +
+        "lower contrast), and background left in enclosed gaps such as between an arm and the body, which the " +
+        "detector can miss and which needs saying to the user.",
       inputSchema: {
         project, layer,
-        advanced: z.boolean().optional().describe("Refine the mask onto the image's own edges (slower, much better on hair and fur)."),
-        refine: z.number().min(0).optional().describe("Advanced: how far, in layer pixels, the mask is pulled onto the image's edges (default 12)."),
-        contrast: z.number().min(0).max(100).optional().describe("Advanced: pushes mask grays toward black and white, clearing haze (default 25)."),
-        shift: z.number().optional().describe("Advanced: moves the mask edge in layer pixels; negative contracts, dropping a rim of background color."),
+        edge: z.enum(["clean", "soft"]).default("clean").describe("clean: crisp outline scaled to the image size. soft: the detector's raw mask."),
+        refine: z.number().min(0).optional().describe("Override: how far, in layer pixels, the mask is pulled onto the image's own edges."),
+        contrast: z.number().min(0).max(100).optional().describe("Override: pushes mask grays toward black and white, clearing haze."),
+        shift: z.number().optional().describe("Override: moves the mask edge in layer pixels; negative contracts, dropping a rim of background."),
       },
       annotations: EDITS,
     },
-    async ({ project, layer, advanced, refine, contrast, shift }) => {
+    async ({ project, layer, edge, refine, contrast, shift }) => {
       try {
-        return ok(await run("remove-background", [resolvePath(project), layer, ...options({ advanced, refine, contrast, shift }, ["advanced"])]));
+        return ok(await run("remove-background", [resolvePath(project), layer, ...options({ edge, refine, contrast, shift })]));
       } catch (error) { return failed(error); }
     },
   );

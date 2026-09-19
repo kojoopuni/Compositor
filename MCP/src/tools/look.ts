@@ -117,13 +117,13 @@ export function registerLookTools(server: McpServer) {
         project,
         layer: z.string().min(1).describe("Layer id or exact name; it must have pixels."),
         output: z.string().min(1).describe("PNG file to write."),
-        advanced: z.boolean().optional().describe("Refine the edge onto the image's own detail (better hair and fur; slower)."),
+        edge: z.enum(["clean", "soft"]).default("clean").describe("clean: crisp outline scaled to the image size. soft: the detector's raw mask."),
       },
       annotations: { ...EDITS, idempotentHint: true },
     },
-    async ({ project, layer, output, advanced }) => {
+    async ({ project, layer, output, edge }) => {
       try {
-        return ok(await run("subject-mask", [resolvePath(project), layer, ...options({ out: resolvePath(output), advanced }, ["advanced"])]));
+        return ok(await run("subject-mask", [resolvePath(project), layer, ...options({ out: resolvePath(output), edge })]));
       } catch (error) { return failed(error); }
     },
   );
