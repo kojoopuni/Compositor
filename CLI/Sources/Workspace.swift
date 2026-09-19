@@ -5,12 +5,42 @@ import Foundation
 struct Workspace {
     let session: EditorSession
     let url: URL
+    /// When the project was last written, as read on opening; nil for a project that does not exist yet.
+    var opened: Date? = nil
 
     static func open(_ url: URL) async throws -> Workspace {
+        let opened = Workspace.lastWritten(url)
         let snapshot = try await ProjectStore.shared.load(from: url)
         let session = EditorSession()
         session.installProject(snapshot, from: url)
-        return Workspace(session: session, url: url)
+        return Workspace(session: session, url: url, opened: opened)
+    }
+
+    static func lastWritten(_ url: URL) -> Date? {
+        let manifest = url.appendingPathComponent("manifest.json")
+        return (try? FileManager.default.attributesOfItem(atPath: manifest.path))?[.modificationDate] as? Date
+    }
+
+    /// Saves over `url` unless it was written by someone else since `opened` — most likely the app, with the same
+    /// project open. Then the project is left alone, the result goes beside it, and the command fails saying so.
+    static func save(_ snapshot: ProjectSnapshot, to url: URL, opened: Date?) async throws {
+        // Lets the tests change the project between a command's load and its save.
+        if let pause = ProcessInfo.processInfo.environment["COMPOSITOR_CLI_PAUSE_BEFORE_SAVE"].flatMap(Double.init) {
+            try await Task.sleep(for: .seconds(pause))
+        }
+        if let opened, let now = lastWritten(url), now != opened {
+            let name = url.deletingPathExtension().lastPathComponent
+            var copy = url.deletingLastPathComponent().appendingPathComponent("\(name) (agent copy).comp")
+            var count = 2
+            while FileManager.default.fileExists(atPath: copy.path) {
+                copy = url.deletingLastPathComponent().appendingPathComponent("\(name) (agent copy \(count)).comp")
+                count += 1
+            }
+            try await ProjectStore.shared.save(snapshot, to: copy)
+            throw CommandError("\(url.lastPathComponent) changed while this command ran; is it open in Compositor? "
+                + "It was left as it is, and the result was saved as \(copy.lastPathComponent).")
+        }
+        try await ProjectStore.shared.save(snapshot, to: url)
     }
 
     /// A new project with one blank layer, as File > New makes.
@@ -24,9 +54,9 @@ struct Workspace {
         return Workspace(session: session, url: url)
     }
 
-    func save(to destination: URL? = nil) async throws {
+    func save() async throws {
         guard let snapshot = session.projectSnapshot() else { throw CommandError("there is no document to save") }
-        try await ProjectStore.shared.save(snapshot, to: destination ?? url)
+        try await Workspace.save(snapshot, to: url, opened: opened)
     }
 
     func snapshot() throws -> ProjectSnapshot {

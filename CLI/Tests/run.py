@@ -227,6 +227,24 @@ def a_layer_with_no_subject_says_so(folder):
     assert "subject" in message.lower(), message
 
 
+@test
+def a_project_changed_by_someone_else_is_left_alone(folder):
+    import time
+    project = os.path.join(folder, "shared.comp")
+    run("new", project, "--width", 40, "--height", 40)
+    run("add-layer", project, os.path.join(folder, "red.png"), "--name", "Red")
+    slow = subprocess.Popen([TOOL, "set-layer", project, "Red", "--opacity", "10"], text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env={**os.environ, "COMPOSITOR_CLI_PAUSE_BEFORE_SAVE": "2"})
+    time.sleep(1)
+    run("set-layer", project, "Red", "--name", "Renamed elsewhere")  # stands in for a save from the app
+    _, message = slow.communicate(timeout=30)
+    assert slow.returncode != 0 and "agent copy" in message, message
+    assert names(project) == ["Renamed elsewhere", "Layer 1"], "the other save survives"
+    copy = os.path.join(folder, "shared (agent copy).comp")
+    assert next(layer for layer in layers(copy) if layer["name"] == "Red")["opacity"] == 0.1, "the result is kept beside it"
+
+
 def main():
     if "--no-build" not in sys.argv:
         build()
