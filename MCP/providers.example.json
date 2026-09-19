@@ -2,14 +2,14 @@
   "current": {},
   "providers": {
     "flux2-klein-4b": {
-      "kind": "mflux", "command": "mflux-generate-flux2", "model": "flux2-klein-4b", "steps": 4, "quantize": 8,
+      "kind": "mflux", "command": "mflux-generate-flux2", "model": "flux2-klein-4b", "steps": 4,
       "capabilities": ["generate"],
-      "note": "Local. FLUX.2 klein 4B, distilled to 4 steps. Apache 2.0 weights. Remove quantize for full precision."
+      "note": "Local. FLUX.2 klein 4B, distilled to 4 steps. Apache 2.0 weights. Measured on an M2 Max (96 GB): 22 s per 1024 px image at full precision, 31 s with quantize 8 (quantizing costs more than it saves when memory is plentiful), 18 GB peak. First run downloads about 13 GB."
     },
     "flux2-klein-4b-edit": {
-      "kind": "mflux", "command": "mflux-generate-flux2-edit", "model": "flux2-klein-4b", "steps": 4, "quantize": 8,
+      "kind": "mflux", "command": "mflux-generate-flux2-edit", "model": "flux2-klein-4b", "steps": 4,
       "capabilities": ["edit"],
-      "note": "Local. FLUX.2 klein 4B following an instruction on an existing image."
+      "note": "Local. FLUX.2 klein 4B following an instruction on an existing image. Measured on an M2 Max: 47 s per 1024 px edit. Same weights as flux2-klein-4b."
     },
     "z-image-turbo": {
       "kind": "mflux", "command": "mflux-generate-z-image-turbo", "steps": 9, "quantize": 8,

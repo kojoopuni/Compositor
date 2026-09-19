@@ -68,7 +68,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 29);
+    assert.equal(tools.length, 36);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -139,7 +139,7 @@ try {
     await writeFile(path.join(folder, "lit.png"), png(64, 64, (x, y) => { const v = 60 + x * 2 + ((x * 7 + y * 13) % 23); return [v, v, v, 255]; }));
     await call("compositor_new_project", { project: texture, width: 64, height: 64 });
     await call("compositor_add_image_layer", { project: texture, image: path.join(folder, "lit.png"), name: "Stone" });
-    const tiled = await call("compositor_make_tileable", { project: texture, layer: "Stone", band: 14, lighting: 100 });
+    const tiled = await call("compositor_make_tileable", { project: texture, layer: "Stone", method: "patch", band: 14, lighting: 100 });
     assert.ok(!tiled.failed, JSON.stringify(tiled.content));
     const left = await call("compositor_sample_color", { project: texture, x: 0, y: 30 }), right = await call("compositor_sample_color", { project: texture, x: 63, y: 30 });
     assert.ok(Math.abs(left.data?.red - right.data?.red) < 40, `edges ${left.data?.red} and ${right.data?.red}`);
@@ -173,13 +173,28 @@ try {
     assert.deepEqual(filled.data?.area, { x: 32, y: 32, width: 192, height: 192 });
     assert.equal((await call("compositor_sample_color", { project: scene, x: 128, y: 128 })).data?.red, 0, "the middle of the area is the new layer");
     assert.equal((await call("compositor_sample_color", { project: scene, x: 40, y: 40 })).data?.red, 255, "the context around it is masked away");
+    const surface = path.join(folder, "surface.comp");
+    await call("compositor_generate_image", { prompt: "cobblestones", project: surface, width: 256, height: 256, provider: "fake", layer_name: "Cobble" });
+    const healed = await call("compositor_make_tileable", { project: surface, layer: "Cobble", method: "model" });
+    assert.ok(!healed.failed && healed.data?.method === "model", JSON.stringify(healed.content));
+    const after = await call("compositor_get_info", { project: surface });
+    assert.deepEqual(after.data?.layers.map((entry: any) => [entry.name, entry.visible]).slice(0, 2), [["Cobble (tileable)", true], ["Cobble", false]]);
+    // The stand-in model paints green-black (red 0); only the cross over the seams, slid back to the edges, takes it.
+    assert.equal((await call("compositor_sample_color", { project: surface, x: 1, y: 100 })).data?.red, 0, "the repaired band ends up at the tile's edges");
+    assert.equal((await call("compositor_sample_color", { project: surface, x: 128, y: 128 })).data?.red, 255, "the middle of the tile is untouched");
     const edited = await call("compositor_edit_image", { project: scene, instruction: "make it autumn" });
     assert.ok(!edited.failed && edited.data?.layer);
     const bigger = await call("compositor_upscale_image", { image: path.join(folder, "red.png"), output: path.join(folder, "big.png"), provider: "fake" });
     assert.ok(!bigger.failed);
     const log = (await readFile(path.join(config, "generations.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    assert.deepEqual(log.map((entry) => entry.capability), ["generate", "edit", "edit", "upscale"]);
+    assert.deepEqual(log.map((entry) => entry.capability), ["generate", "edit", "generate", "edit", "edit", "upscale"]);
     assert.ok(log[0].prompt === "mossy stone wall" && log[0].seed === 7);
+  });
+
+  await test("live tools say how to switch control on when the app is not listening", async () => {
+    const status = await call("compositor_live_status", {});
+    // With the app closed this must fail helpfully; with it open and control on, it answers.
+    assert.ok(status.failed ? /Allow Assistant Control/.test(status.content[0].text ?? "") : status.data?.open !== undefined);
   });
 
   await test("mistakes come back as errors that say what to do", async () => {
@@ -193,7 +208,7 @@ try {
     assert.ok(subject.failed && /subject/i.test(subject.content[0].text ?? ""));
   });
 
-  console.log(`${passed} of 8 passed`);
+  console.log(`${passed} of 9 passed`);
 } finally {
   await client.close();
   await rm(folder, { recursive: true, force: true });

@@ -45,6 +45,14 @@ The server uses `CLI/build/Release/compositor-cli`, falling back to the Debug bu
 | `compositor_resize` | Image Size (resample) or Canvas Size (no resampling) |
 | `compositor_export` | PNG, JPEG, TIFF or TGA at full size, with optional edge bleed for engine cut-outs |
 
+## Image models
+
+Generation, editing, generative fill, model-based seam healing and upscaling go through providers, listed in `~/.config/compositor/providers.json` (created from `providers.example.json` on first use). Every provider is an equal entry and none is built in as a default: a request names one, or uses whichever the user has set as current with `compositor_set_current_provider`. Kinds: `mflux` (local, MLX; `uv tool install --upgrade mflux`), `gemini` (cloud; key from the `GEMINI_API_KEY` environment variable), and `command` (any scriptable runner, such as Draw Things' CLI or a ComfyUI script). Each result is logged with its prompt and seed in `~/.config/compositor/generations.jsonl`.
+
+## Live control
+
+With the fork's app running and **Compositor > Allow Assistant Control** switched on, the `compositor_live_` tools act on the project open in the front tab, each change an ordinary undo step. The app listens on the loopback address only and requires a token it writes inside its own container. The file tools refuse to edit a project the app has open with unsaved changes.
+
 ## Safety
 
 If a project changes on disk while a command is running — most likely because it is open in the app and was saved — the project is left as it is, the result is saved beside it as `<name> (agent copy).comp`, and the tool call fails saying so. Even so, do not point the agent at a project that is open in the app with unsaved changes.

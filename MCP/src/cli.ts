@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { liveInfo } from "./live.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,8 +49,23 @@ export function options(values: Record<string, Option>, flags: string[] = []): s
   return result;
 }
 
+/** Commands that rewrite the project named by their first argument. */
+const REWRITES = new Set(["add-layer", "add-blank-layer", "add-folder", "set-layer", "move-layer", "delete-layer", "set-mask",
+  "remove-background", "filter", "add-adjustment", "resize", "canvas-size", "crop", "make-tileable"]);
+
 /** Runs one command and returns its JSON. A failure carries the tool's own message, which says what to change. */
-export function run(command: string, args: string[]): Promise<Record<string, unknown>> {
+export async function run(command: string, args: string[]): Promise<Record<string, unknown>> {
+  if (REWRITES.has(command) && args[0]) {
+    const open = await liveInfo();
+    if (open?.unsavedChanges === true && typeof open.project === "string" && path.resolve(open.project) === path.resolve(args[0])) {
+      throw new Error(`${path.basename(args[0])} is open in the Compositor app with unsaved changes, so editing the file would ` +
+        "lose one side's work. Ask the user to save it, or work on it live with the compositor_live_ tools.");
+    }
+  }
+  return execute(command, args);
+}
+
+function execute(command: string, args: string[]): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     execFile(toolPath(), [command, ...args], { maxBuffer: 64 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (error, stdout, stderr) => {
       if (error) {
