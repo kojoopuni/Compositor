@@ -14,6 +14,8 @@ struct ExportFormatItems: View {
         }
         Button("Export PNG with Edge Bleed…") { Task { await projects.exportBleedPNG() } }
             .disabled(session.document == nil || !projects.canStart)
+        Divider()
+        Button("Open Photoshop Document…") { Task { await projects.openPhotoshopDocument() } }
     }
 }
 

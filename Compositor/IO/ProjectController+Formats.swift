@@ -48,4 +48,39 @@ extension ProjectController {
             if let window { _ = await alert.beginSheetModal(for: window) } else { alert.runModal() }
         }
     }
+
+    /// File > Open Photoshop Document…: the document's layers in a new tab, never touching the .psd itself.
+    func openPhotoshopDocument() async {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "psd") ?? .data]
+        panel.allowsMultipleSelection = false
+        panel.title = "Open Photoshop Document"
+        let response: NSApplication.ModalResponse
+        if let window { response = await panel.beginSheetModal(for: window) } else { response = await panel.begin() }
+        guard response == .OK, let url = panel.url else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let alert = NSAlert()
+        do {
+            let result = try await Task.detached(priority: .userInitiated) { try PSDImporter.load(url) }.value
+            guard let tab = workspace?.addTab() else { return }
+            // Installed as a new, unsaved project: saving writes a .comp and leaves the Photoshop file alone.
+            tab.session.installProject(result.snapshot, from: url.deletingPathExtension().appendingPathExtension("comp"))
+            tab.session.projectURL = nil
+            guard !result.skipped.isEmpty || !result.vectorMasked.isEmpty else { return }
+            alert.alertStyle = .informational
+            alert.messageText = "Some of this document is drawn by Photoshop itself"
+            alert.informativeText = [
+                result.skipped.isEmpty ? nil : "Adjustment and fill layers have no pixels to bring: \(result.skipped.joined(separator: ", ")).",
+                result.vectorMasked.isEmpty ? nil : "Vector masks were left behind on: \(result.vectorMasked.joined(separator: ", ")).",
+                "Photoshop’s own flattened picture was added as the top layer so the project looks as it did. Hide it to work with the layers beneath.",
+            ].compactMap { $0 }.joined(separator: "\n\n")
+        } catch {
+            alert.alertStyle = .warning
+            alert.messageText = "Couldn’t open the Photoshop document"
+            alert.informativeText = error.localizedDescription
+        }
+        alert.addButton(withTitle: "OK")
+        if let window { _ = await alert.beginSheetModal(for: window) } else { alert.runModal() }
+    }
 }

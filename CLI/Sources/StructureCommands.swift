@@ -120,4 +120,23 @@ extension Commands {
         }
         return match
     }
+
+    /// compositor-cli import-psd <file.psd> --out project.comp [--overwrite]
+    /// Opens a Photoshop document as a project: layers, folders, masks, opacity and blend modes. Text and smart
+    /// objects arrive as pixels; adjustment layers are skipped and listed.
+    static func importPSD(_ raw: [String]) async throws -> String {
+        let arguments = Arguments(raw)
+        let source = try arguments.url(0, "the Photoshop document")
+        guard let output = arguments.url(option: "out") else { throw CommandError("import-psd needs --out <project.comp>") }
+        if FileManager.default.fileExists(atPath: output.path), !arguments.flag("overwrite") {
+            throw CommandError("\(output.lastPathComponent) already exists; pass --overwrite to replace it")
+        }
+        let result = try PSDImporter.load(source)
+        try await ProjectStore.shared.save(result.snapshot, to: output)
+        let manifest = result.snapshot.manifest
+        return try json(["project": output.path, "width": manifest.width, "height": manifest.height,
+                         "layers": manifest.layers.filter { $0.isGroup != true }.count, "folders": manifest.layers.filter { $0.isGroup == true }.count,
+                         "masks": result.snapshot.masks.count, "skippedAdjustmentAndFillLayers": result.skipped, "vectorMasksNotImported": result.vectorMasked,
+                         "referenceLayerAdded": manifest.layers.last?.name == PSDImporter.referenceName])
+    }
 }
