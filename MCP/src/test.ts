@@ -68,7 +68,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 36);
+    assert.equal(tools.length, 38);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -191,6 +191,22 @@ try {
     assert.ok(log[0].prompt === "mossy stone wall" && log[0].seed === 7);
   });
 
+  await test("text, the newer blend modes and the newer adjustments go through", async () => {
+    const card = path.join(folder, "card.comp");
+    await call("compositor_new_project", { project: card, width: 300, height: 120 });
+    await call("compositor_add_image_layer", { project: card, image: path.join(folder, "gray.png"), name: "Base", width: 300, height: 120, x: 0, y: 0 });
+    const added = await call("compositor_add_text", { project: card, text: "Ruins", size: 40, color: { red: 255, green: 0, blue: 0 }, align: "center", blend: "Linear Dodge (Add)" });
+    assert.ok(!added.failed, JSON.stringify(added.content));
+    await call("compositor_set_text", { project: card, layer: "Ruins", text: "The Ruins", size: 30 });
+    const info = await call("compositor_get_info", { project: card });
+    const title = info.data?.layers[0];
+    assert.ok(title.kind === "text" && title.text === "The Ruins" && title.fontSize === 30 && title.blendMode === "Linear Dodge (Add)", JSON.stringify(title));
+    const mono = await call("compositor_add_adjustment", { project: card, kind: "Black & White", reds: 100, greens: 0, blues: 0 });
+    assert.ok(!mono.failed, JSON.stringify(mono.content));
+    const toned = await call("compositor_add_adjustment", { project: card, kind: "Color Balance", midtones: { red: 60, green: 0, blue: -40 } });
+    assert.ok(!toned.failed, JSON.stringify(toned.content));
+  });
+
   await test("live tools say how to switch control on when the app is not listening", async () => {
     const status = await call("compositor_live_status", {});
     // With the app closed this must fail helpfully; with it open and control on, it answers.
@@ -208,7 +224,7 @@ try {
     assert.ok(subject.failed && /subject/i.test(subject.content[0].text ?? ""));
   });
 
-  console.log(`${passed} of 9 passed`);
+  console.log(`${passed} of 10 passed`);
 } finally {
   await client.close();
   await rm(folder, { recursive: true, force: true });

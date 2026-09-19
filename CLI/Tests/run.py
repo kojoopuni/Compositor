@@ -319,6 +319,45 @@ def map_sets_are_derived_packed_and_heightmaps_read_at_full_depth(folder):
 
 
 @test
+def text_layers_are_set_edited_and_stay_live(folder):
+    project = os.path.join(folder, "text.comp")
+    run("new", project, "--width", 400, "--height", 200)
+    added = run("add-text", project, "Ruins\\nLevel 2", "--size", 48, "--color", "255,200,0", "--align", "center", "--name", "Title")
+    assert added["size"] == 48
+    title = next(layer for layer in layers(project) if layer["name"] == "Title")
+    assert title["kind"] == "text" and title["text"] == "Ruins\nLevel 2" and title["fontSize"] == 48
+    assert abs(title["x"] + title["width"] / 2 - 200) <= 1, "centered on the canvas"
+    box = (int(title["x"]), int(title["y"]), int(title["width"]), int(title["height"]))
+    colored = [sample(project, x, y) for x in range(box[0], box[0] + box[2], 3) for y in range(box[1], box[1] + box[3], 3)]
+    assert any(near(color, (255, 200, 0, 255), 6) for color in colored), "the letters are the asked-for color"
+    run("set-text", project, "Title", "--text", "A much longer title line", "--size", 30)
+    longer = next(layer for layer in layers(project) if layer["name"] == "Title")
+    assert longer["text"] == "A much longer title line" and (longer["x"], longer["y"]) == (title["x"], title["y"]), "it keeps its corner"
+    run("set-layer", project, "Title", "--scale", 200)
+    assert abs(next(layer for layer in layers(project) if layer["name"] == "Title")["fontSize"] - 60) < 1, "scaling sets the text again, larger"
+    run("filter", project, "Title", "Gaussian Blur", "--radius", 2)
+    assert next(layer for layer in layers(project) if layer["name"] == "Title")["kind"] == "pixels", "filtered, it is plain pixels"
+    assert "not a text layer" in refused("set-text", project, "Title", "--size", 20)
+    assert "some characters" in refused("add-text", project, "x", "--size", 9000)
+
+
+@test
+def the_forks_color_adjustments_work_as_filters_and_layers(folder):
+    project = os.path.join(folder, "color.comp")
+    run("new", project, "--width", 20, "--height", 20)
+    png(os.path.join(folder, "orange.png"), 20, 20, lambda x, y: (255, 128, 0, 255))
+    run("add-layer", project, os.path.join(folder, "orange.png"), "--name", "Orange")
+    run("add-adjustment", project, "Black & White", "--reds", 100, "--greens", 0, "--blues", 0, "--name", "Mono")
+    assert near(sample(project, 10, 10), (255, 255, 255, 255)), "all of red's brightness, none of green's"
+    run("set-layer", project, "Mono", "--visible", "false")
+    run("add-adjustment", project, "Posterize", "--levels", 2, "--name", "Poster")
+    assert near(sample(project, 10, 10), (255, 255, 0, 255)), "half green rounds up to full"
+    run("delete-layer", project, "Poster")
+    run("filter", project, "Orange", "Threshold", "--level", 200)
+    assert near(sample(project, 10, 10), (0, 0, 0, 255)), "orange is darker than level 200"
+
+
+@test
 def resizing_resamples_and_canvas_size_does_not(folder):
     project = os.path.join(folder, "size.comp")
     run("new", project, "--width", 40, "--height", 40)

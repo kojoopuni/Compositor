@@ -17,6 +17,8 @@ enum Commands {
         case "new": return try await new(rest)
         case "add-layer": return try await addLayer(rest)
         case "set-layer": return try await setLayer(rest)
+        case "add-text": return try await addText(rest)
+        case "set-text": return try await setText(rest)
         case "delete-layer": return try await deleteLayer(rest)
         case "add-folder": return try await addEmptyLayer(rest, folder: true)
         case "add-blank-layer": return try await addEmptyLayer(rest, folder: false)
@@ -56,6 +58,7 @@ enum Commands {
             ]
             if layer.isGroup == true { entry["kind"] = "folder" }
             else if let adjustment = layer.adjustment { entry["kind"] = "adjustment"; entry["adjustment"] = adjustment.kind.rawValue }
+            else if let text = layer.shape?.text { entry["kind"] = "text"; entry["text"] = text.string; entry["font"] = text.font; entry["fontSize"] = text.size }
             else { entry["kind"] = layer.imageFile == nil ? "blank" : "pixels" }
             if let parent = layer.parentID { entry["parent"] = parent.uuidString }
             if layer.maskFile != nil { entry["mask"] = layer.maskEnabled ?? true ? "enabled" : "disabled" }
@@ -74,6 +77,9 @@ enum Commands {
           add-layer        <project> <image> [--name N] [placement] [appearance]
           add-blank-layer  <project> [--name N] [--above LAYER]
           add-folder       <project> [--name N] [--above LAYER]
+          add-text         <project> "<text>" [--font F --size PX --color r,g,b --align left|center|right
+                           --tracking N --leading N --wrap PX --x X --y Y --name N] [appearance]
+          set-text         <project> <layer> [--text "<text>"] [the add-text options]
           set-layer        <project> <layer> [--name N] [--visible true|false] [placement] [appearance]
           move-layer       <project> <layer> --top | --bottom | --out | --above LAYER | --into FOLDER
           delete-layer     <project> <layer>

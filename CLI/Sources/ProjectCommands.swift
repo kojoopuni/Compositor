@@ -94,7 +94,7 @@ extension Commands {
     }
 
     /// --opacity (0–100) and --blend (a blend mode's name, e.g. "Multiply").
-    private static func appearance(_ workspace: Workspace, _ arguments: Arguments) throws {
+    static func appearance(_ workspace: Workspace, _ arguments: Arguments) throws {
         if let opacity = try arguments.number("opacity") {
             guard (0...100).contains(opacity) else { throw CommandError("--opacity is 0–100") }
             workspace.session.setLayerOpacity(opacity / 100)
