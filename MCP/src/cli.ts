@@ -51,7 +51,7 @@ export function options(values: Record<string, Option>, flags: string[] = []): s
 
 /** Commands that rewrite the project named by their first argument. */
 const REWRITES = new Set(["add-layer", "add-blank-layer", "add-folder", "set-layer", "move-layer", "delete-layer", "set-mask",
-  "remove-background", "filter", "add-adjustment", "resize", "canvas-size", "crop", "make-tileable"]);
+  "remove-background", "filter", "add-adjustment", "resize", "canvas-size", "crop", "make-tileable", "add-text", "set-text", "add-effect"]);
 
 /** Runs one command and returns its JSON. A failure carries the tool's own message, which says what to change. */
 export async function run(command: string, args: string[]): Promise<Record<string, unknown>> {

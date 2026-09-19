@@ -342,6 +342,19 @@ def text_layers_are_set_edited_and_stay_live(folder):
 
 
 @test
+def effects_are_layers_beneath_their_source(folder):
+    project = os.path.join(folder, "effects.comp")
+    run("new", project, "--width", 200, "--height", 200)
+    run("add-layer", project, os.path.join(folder, "red.png"), "--name", "Square")   # 40 px, centered: 80–120
+    added = run("add-effect", project, "Square", "stroke", "--size", 6, "--color", "0,0,255")
+    assert names(project)[:2] == ["Square", "Square stroke"] and added["effect"] == "Stroke"
+    assert near(sample(project, 100, 100), (255, 0, 0, 255)) and near(sample(project, 77, 100), (0, 0, 255, 255)) and sample(project, 70, 100)[3] == 0
+    run("add-effect", project, "Square", "shadow", "--distance", 30, "--angle", 180, "--size", 2, "--opacity", 100)
+    assert sample(project, 140, 100)[3] > 200, "lit from the left, the shadow falls to the right"
+    assert "shadow, glow or stroke" in refused("add-effect", project, "Square", "bevel")
+
+
+@test
 def the_forks_color_adjustments_work_as_filters_and_layers(folder):
     project = os.path.join(folder, "color.comp")
     run("new", project, "--width", 20, "--height", 20)

@@ -37,6 +37,7 @@
 				UI/ColorPickerSheet.swift,
 				UI/CropControls.swift,
 				UI/CurvesControls.swift,
+				UI/EffectPanel.swift,
 				UI/FilterSheet.swift,
 				UI/FloatingPanel.swift,
 				UI/ForkMenus.swift,
