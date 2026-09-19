@@ -8,7 +8,9 @@ import CoreImage
 /// a layer in one of these modes is drawn into a copy of the canvas, blended there, and the result put back.
 nonisolated enum SeparableBlend {
     static func isCoreGraphicsWrong(_ mode: LayerBlendMode) -> Bool { mode == .colorBurn || mode == .colorDodge }
-    private static let ciContext = CIContext(options: [.cacheIntermediates: false])
+    /// Unmanaged, like `PixelAdjust`: left to itself Core Image blends in linear light, where these modes give
+    /// different (darker) results than the sRGB values every other mode, and Photoshop, blend.
+    private static let ciContext = CIContext(options: [.cacheIntermediates: false, .workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
     private static let space = CGColorSpace(name: CGColorSpace.sRGB)!
 
     /// Draws one layer into `context` in `mode`. `body` draws it as it would be drawn normally, into a context laid
