@@ -71,6 +71,7 @@ struct CompositorApp: App {
                     Button("Export JPEG…") { Task { await applicationDelegate.projects.exportJPEG() } }
                         .keyboardShortcut("s", modifiers: [.command, .option, .shift])
                         .disabled(session.document == nil || !applicationDelegate.projects.canStart)
+                    ExportFormatItems(session: session, projects: applicationDelegate.projects)
                     Divider()
                     Button("Close Project") {
                         if let window = applicationDelegate.projects.window {
@@ -95,6 +96,7 @@ struct CompositorApp: App {
                         Toggle("Show Transform Controls", isOn: Binding(get: { session.showsTransformControls },
                                                                           set: { session.showsTransformControls = $0 }))
                             .keyboardShortcut("h").disabled(session.tool != .move || session.document == nil)
+                        TilePreviewItem(session: session)
                     }
                     // ⌘H toggles the Move tool's transform controls instead of hiding the app, so Hide keeps its
                     // place in the app menu without the shortcut.
@@ -193,6 +195,7 @@ struct CompositorApp: App {
                         .keyboardShortcut("i")
                         .disabled(!session.canInvert)
                     Divider()
+                    TrimItem(session: session)
                     Button("Canvas Size…") { Task { await applicationDelegate.projects.canvasSize() } }
                         .keyboardShortcut("c", modifiers: [.command, .option])
                         .disabled(session.document == nil || !applicationDelegate.projects.canStart)

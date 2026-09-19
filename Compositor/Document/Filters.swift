@@ -10,6 +10,12 @@ nonisolated enum FilterKind: String, CaseIterable, Sendable {
     case addNoise = "Add Noise"
     case lensCorrection = "Lens Correction"
     case offset = "Offset"
+    case makeTileable = "Make Tileable"
+    case evenLighting = "Even Lighting"
+    case highPass = "High Pass"
+    case unsharpMask = "Unsharp Mask"
+    case normalMap = "Height to Normal Map"
+    case clouds = "Clouds"
     case removeBackground = "Remove Background"
     case contentAwareFill = "Content-Aware Fill"
     case curves = "Curves"
@@ -50,6 +56,31 @@ nonisolated struct FilterSettings: Equatable, Sendable {
     var offsetHorizontal: Double = 50
     /// Offset: how far the pixels slide down, as a percentage of the layer's height, −100–100.
     var offsetVertical: Double = 50
+    /// Gaussian and Motion Blur: soft inside but solid at the layer's own outline, instead of fading into the
+    /// transparency around it. For textures and backgrounds that must keep covering their borders.
+    var keepEdges = false
+    /// Make Tileable: width of the band rebuilt over the seams, as a percentage of the layer's shorter side, 2–40.
+    var tileBand: Double = 12
+    /// Make Tileable: how much of the broad light and shade is flattened first, 0–100.
+    var tileLighting: Double = 100
+    /// Even Lighting: how much of the broad light and shade is flattened, 0–100.
+    var lightingStrength: Double = 100
+    /// High Pass: the size of detail kept, in layer pixels, 0.1–250.
+    var highPassRadius: Double = 10
+    /// Unsharp Mask: strength as a percentage, 1–500.
+    var sharpenAmount: Double = 100
+    /// Unsharp Mask: the blur it sharpens against, in layer pixels, 0.1–250.
+    var sharpenRadius: Double = 2
+    /// Unsharp Mask: differences smaller than this many levels are left alone, 0–255.
+    var sharpenThreshold: Double = 0
+    /// Height to Normal Map: how steep the slopes are made, 0.1–50.
+    var normalStrength: Double = 4
+    /// Height to Normal Map: green points down, for Unreal and DirectX; off for Godot, Unity and Blender.
+    var normalYDown = false
+    /// Height to Normal Map: slopes at the edges read from the opposite edge, for a texture that tiles.
+    var normalWrap = true
+    /// Clouds: how many large features fit across the layer, 1–64.
+    var cloudCells: Double = 4
     var curves = CurvesSettings()
     var exposure = ExposureSettings()
     var gradientMap = GradientMapSettings()
@@ -74,6 +105,15 @@ nonisolated struct FilterSettings: Equatable, Sendable {
         result.distortion = clamp(distortion, -100...100, 0)
         result.offsetHorizontal = clamp(offsetHorizontal, -100...100, 50)
         result.offsetVertical = clamp(offsetVertical, -100...100, 50)
+        result.tileBand = clamp(tileBand, 2...40, 12)
+        result.tileLighting = clamp(tileLighting, 0...100, 100)
+        result.lightingStrength = clamp(lightingStrength, 0...100, 100)
+        result.highPassRadius = clamp(highPassRadius, 0.1...250, 10)
+        result.sharpenAmount = clamp(sharpenAmount, 1...500, 100)
+        result.sharpenRadius = clamp(sharpenRadius, 0.1...250, 2)
+        result.sharpenThreshold = clamp(sharpenThreshold, 0...255, 0)
+        result.normalStrength = clamp(normalStrength, 0.1...50, 4)
+        result.cloudCells = clamp(cloudCells, 1...64, 4)
         result.refineEdges = clamp(refineEdges, 0...40, 12)
         result.matteContrast = clamp(matteContrast, 0...100, 25)
         result.shiftEdge = clamp(shiftEdge, -10...10, 0)
@@ -169,14 +209,16 @@ nonisolated enum PixelFilter {
             image = try ContentFill.run(job)
         case .gaussianBlur:
             let blurred = edges.applyingGaussianBlur(sigma: settings.radius * job.scale)
-            image = try PixelAdjust.render(blurred.cropped(to: extent), width: width, height: height, isMask: false)
+            let soft = try PixelAdjust.render(blurred.cropped(to: extent), width: width, height: height, isMask: false)
+            image = settings.keepEdges ? try TextureFilter.restoreEdges(soft, original: job.image) : soft
         case .motionBlur:
             // Core Image's y axis points up, so its counterclockwise angle matches Photoshop's.
             let streaked = edges.applyingFilter("CIMotionBlur", parameters: [
                 kCIInputRadiusKey: settings.distance * job.scale * motionRadiusPerPixel,
                 kCIInputAngleKey: settings.angle * .pi / 180,
             ])
-            image = try PixelAdjust.render(streaked.cropped(to: extent), width: width, height: height, isMask: false)
+            let soft = try PixelAdjust.render(streaked.cropped(to: extent), width: width, height: height, isMask: false)
+            image = settings.keepEdges ? try TextureFilter.restoreEdges(soft, original: job.image) : soft
         case .addNoise:
             // C, not Core Image: its random generator is uniform only, and Gaussian noise is needed too.
             let context = try BrushRaster.context(width: width, height: height, mask: false)
@@ -198,6 +240,21 @@ nonisolated enum PixelFilter {
             image = corrected
         case .offset:
             image = try wrapped(job.image, by: offsetPixels(settings, width: width, height: height))
+        case .makeTileable:
+            image = try TextureFilter.makeTileable(job.image, band: settings.tileBand, lighting: settings.tileLighting)
+        case .evenLighting:
+            image = try TextureFilter.evenLighting(job.image, strength: settings.lightingStrength)
+        case .highPass:
+            image = try TextureFilter.highPass(job.image, radius: settings.highPassRadius * job.scale)
+        case .unsharpMask:
+            image = try TextureFilter.unsharpMask(job.image, amount: settings.sharpenAmount,
+                                                  radius: settings.sharpenRadius * job.scale, threshold: settings.sharpenThreshold)
+        case .normalMap:
+            // A preview has fewer pixels across the same slopes, so each step is taller; scaling keeps the look.
+            image = try TextureFilter.normalMap(job.image, strength: settings.normalStrength * job.scale,
+                                                yDown: settings.normalYDown, wrap: settings.normalWrap)
+        case .clouds:
+            image = try TextureFilter.clouds(width: width, height: height, cells: settings.cloudCells, seed: job.seed)
         }
         guard let selection = job.selection else { return image }
         return try PixelAdjust.blend(image, over: job.image, through: selection, pixelToDocument: job.mapping, isMask: false)
@@ -257,6 +314,7 @@ final class FilterEdit {
 
     /// The room a blur needs around the layer: about three standard deviations, or half a streak.
     static func blurMargin(_ kind: FilterKind, _ settings: FilterSettings) -> CGFloat {
+        guard !settings.keepEdges else { return 0 }
         switch kind {
         case .gaussianBlur: return CGFloat(settings.radius * 3 + 2)
         case .motionBlur: return CGFloat(settings.distance / 2 + 2)

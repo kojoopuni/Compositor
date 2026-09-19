@@ -1,0 +1,35 @@
+import SwiftUI
+
+// Menu items added by this fork, each group one view so it takes a single line (and a single slot of the ten a
+// commands builder allows) where it joins the app's menus in CompositorApp.
+
+/// File: the export formats beyond PNG and JPEG.
+struct ExportFormatItems: View {
+    let session: EditorSession
+    let projects: ProjectController
+    var body: some View {
+        ForEach(ExportFormat.allCases, id: \.self) { format in
+            Button("Export \(format.rawValue)…") { Task { await projects.export(as: format) } }
+                .disabled(session.document == nil || !projects.canStart)
+        }
+    }
+}
+
+/// Image: document operations.
+struct TrimItem: View {
+    let session: EditorSession
+    var body: some View {
+        Button("Trim Transparent Pixels") { Task { await session.trimTransparentPixels() } }
+            .disabled(!session.canTrim)
+    }
+}
+
+/// View: ways of looking at the document.
+struct TilePreviewItem: View {
+    let session: EditorSession
+    var body: some View {
+        Button("Tile Preview") { TilePreviewController.shared.show(session) }
+            .keyboardShortcut("t", modifiers: [.command, .option])
+            .disabled(session.document == nil)
+    }
+}
