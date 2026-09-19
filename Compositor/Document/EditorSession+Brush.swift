@@ -10,9 +10,9 @@ extension EditorSession {
             && (isMaskSelected || activeLayer?.adjustment == nil)
     }
     /// Tiled raster edit of the active layer's pixels or mask, within the shared pixel budgets.
-    func makeRasterEdit(for layer: ImageLayer, settings: BrushSettings = BrushSettings()) throws -> BrushStroke {
+    func makeRasterEdit(for layer: ImageLayer, settings: BrushSettings = BrushSettings(), followsPressure: Bool = false) throws -> BrushStroke {
         guard let document else { throw ProjectError.tooLarge }
-        let stroke = try BrushStroke(layer: layer, mask: isMaskSelected, settings: settings, canvas: document.size)
+        let stroke = try BrushStroke(layer: layer, mask: isMaskSelected, settings: settings, canvas: document.size, followsPressure: followsPressure)
         let used = document.layers.filter { $0.id != layer.id }.reduce(0) { total, layer in
             let image = isMaskSelected ? layer.mask?.asset.image : layer.asset?.image
             return total + (image.map { $0.width * $0.height } ?? 0)
@@ -51,11 +51,13 @@ extension EditorSession {
             settings.erasing = tool == .brush && brushMode == .erase && !isMaskSelected
             settings.healingMode = spotHealingMode
             if isMaskSelected { settings.red = maskPaintWhite ? 1 : 0; settings.green = settings.red; settings.blue = settings.red }
-            let stroke = try makeRasterEdit(for: layer, settings: settings)
+            // A pen's pressure sets the Brush's size along the stroke; a mouse, and every other tool, paint at full size.
+            let pen = tool == .brush ? PenPressure.current : nil
+            let stroke = try makeRasterEdit(for: layer, settings: settings, followsPressure: pen != nil)
             stroke.clone = clone
             stroke.isBlur = tool == .blur
             brushStroke = stroke
-            try stroke.append(point)
+            try stroke.append(point, tipScale: pen.map(BrushStroke.tipScale(forPressure:)) ?? 1)
             lastBrushPoint = (point, layer.id, isMaskSelected)
             brushRevision += 1
         } catch { cancelBrush(); brushError = error.localizedDescription }
@@ -63,7 +65,10 @@ extension EditorSession {
     func continueBrush(at point: CGPoint) {
         if let warpStroke { warpStroke.append(point); lastBrushPoint?.point = point; brushRevision += 1; return }
         guard let brushStroke else { return }
-        do { try brushStroke.append(point); lastBrushPoint?.point = point; brushRevision += 1 }
+        do {
+            try brushStroke.append(point, tipScale: PenPressure.current.map(BrushStroke.tipScale(forPressure:)) ?? 1)
+            lastBrushPoint?.point = point; brushRevision += 1
+        }
         catch { cancelBrush(); brushError = error.localizedDescription }
     }
     /// Where a Shift-click paints a line from: the end of the last stroke, while the same layer (or mask) is the target.
