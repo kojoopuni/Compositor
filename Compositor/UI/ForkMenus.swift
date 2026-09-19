@@ -66,3 +66,13 @@ struct TextLayerItems: View {
         Divider()
     }
 }
+
+/// Select: selections found from the active layer's pixels.
+struct SmartSelectionItems: View {
+    let session: EditorSession
+    var body: some View {
+        Divider()
+        Button("Subject") { Task { await session.selectSubject() } }.disabled(!session.canSelectFromPixels)
+        Button("Color Range (Foreground Color)") { Task { await session.selectColorRange() } }.disabled(!session.canSelectFromPixels)
+    }
+}
