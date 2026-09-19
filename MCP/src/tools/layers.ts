@@ -56,6 +56,56 @@ export function registerLayerTools(server: McpServer) {
     },
   );
 
+  const text = {
+    font: z.string().min(1).optional().describe("A font's PostScript or family name, e.g. 'Georgia-Bold', 'Helvetica Neue', 'Futura-Medium'. Unknown names fall back to the system font."),
+    size: z.number().min(1).max(4000).optional().describe("Font size in document pixels (default: a tenth of the canvas height). Check the layer's width against the canvas afterwards; text does not wrap unless wrap is given."),
+    color: z.object({ red: z.number().int().min(0).max(255), green: z.number().int().min(0).max(255), blue: z.number().int().min(0).max(255) }).optional(),
+    align: z.enum(["left", "center", "right"]).optional(),
+    tracking: z.number().min(-200).max(1000).optional().describe("Letter spacing in thousandths of the font size, as in Photoshop."),
+    leading: z.number().min(0.5).max(4).optional().describe("Line height as a multiple of the font's own; 1 is as designed."),
+    wrap: z.number().min(8).max(30000).optional().describe("Wrap lines at this width in document pixels."),
+  };
+  const textOptions = (input: Record<string, any>) => ({ font: input.font, size: input.size, align: input.align, tracking: input.tracking,
+    leading: input.leading, wrap: input.wrap, color: input.color ? `${input.color.red},${input.color.green},${input.color.blue}` : undefined });
+
+  server.registerTool(
+    "compositor_add_text",
+    {
+      title: "Add a text layer",
+      description:
+        "Sets text into a new layer on top (the app's Layer > New Text Layer…), centered unless x and y are given. It " +
+        "stays live: compositor_set_text changes its words or look, and scaling it with compositor_set_layer sets it " +
+        "again at the new size, so it never goes soft. Use \\n for a line break. Filtering or painting on it turns it " +
+        "into plain pixels. After adding, read the layer's size from the result of compositor_get_info and render, to " +
+        "check it fits the canvas and reads against what is behind it.",
+      inputSchema: {
+        project, text: z.string().min(1).describe("The words. \\n starts a new line."), ...text,
+        x: z.number().optional(), y: z.number().optional(), name: z.string().min(1).optional(), ...appearance,
+      },
+      annotations: EDITS,
+    },
+    async (input) => {
+      try {
+        return ok(await run("add-text", [resolvePath(input.project), input.text, ...options({ ...textOptions(input), x: input.x, y: input.y, name: input.name, opacity: input.opacity, blend: input.blend })]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
+    "compositor_set_text",
+    {
+      title: "Change a text layer's words or look",
+      description: "Edits a live text layer (the app's Layer > Edit Text…): new words, font, size, color, alignment, spacing. The layer keeps its top-left corner. Fails, saying so, on a layer that is not text or no longer is.",
+      inputSchema: { project, layer, text: z.string().min(1).optional().describe("New words; omit to keep them."), ...text },
+      annotations: { ...EDITS, idempotentHint: true },
+    },
+    async (input) => {
+      try {
+        return ok(await run("set-text", [resolvePath(input.project), input.layer, ...options({ text: input.text, ...textOptions(input) })]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
   server.registerTool(
     "compositor_add_empty_layer",
     {

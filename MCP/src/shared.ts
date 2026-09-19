@@ -3,7 +3,8 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 export const BLEND_MODES = [
   "Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten", "Difference", "Color Dodge", "Color Burn",
-  "Hue", "Saturation", "Color", "Luminosity",
+  "Hue", "Saturation", "Color", "Luminosity", "Soft Light", "Hard Light", "Exclusion", "Linear Dodge (Add)", "Linear Burn",
+  "Vivid Light", "Linear Light", "Pin Light", "Divide", "Subtract",
 ] as const;
 
 export const project = z
