@@ -66,6 +66,59 @@ struct FilterTests {
         #expect(diagonal(23, 17) > 0 && diagonal(17, 23) > 0 && diagonal(17, 17) == 0)
     }
 
+    @Test func offsetWrapsPixelsAroundTheEdgesAndSlidingBackRestoresThemExactly() throws {
+        // Every pixel its own color, so any misplaced one shows: red counts columns, green counts rows.
+        let context = try BrushRaster.context(width: 8, height: 4, mask: false)
+        for y in 0..<4 { for x in 0..<8 {
+            context.setFillColor(CGColor(srgbRed: CGFloat(x * 30) / 255, green: CGFloat(y * 60) / 255, blue: 0, alpha: 1))
+            context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+        } }
+        let image = try #require(context.makeImage())
+        func bytes(_ image: CGImage) throws -> [UInt8] {
+            let copy = try BrushRaster.context(width: image.width, height: image.height, mask: false)
+            BrushRaster.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height), mask: false, context: copy)
+            return Array(UnsafeBufferPointer(start: try #require(copy.data).assumingMemoryBound(to: UInt8.self),
+                                             count: image.width * image.height * 4))
+        }
+        func run(_ horizontal: Double, _ vertical: Double, on image: CGImage) throws -> CGImage {
+            try PixelFilter.run(FilterJob(kind: .offset, image: image,
+                settings: FilterSettings(offsetHorizontal: horizontal, offsetVertical: vertical),
+                scale: 1, selection: nil, mapping: .identity))
+        }
+        let original = try bytes(image)
+        // A quarter right (2 of 8 columns) and half down (2 of 4 rows): the pixel now at (x, y) came from (x − 2, y − 2).
+        let slid = try bytes(try run(25, 50, on: image))
+        for y in 0..<4 { for x in 0..<8 {
+            let from = ((y + 2) % 4 * 8 + (x + 6) % 8) * 4, to = (y * 8 + x) * 4
+            #expect(Array(slid[to..<to + 4]) == Array(original[from..<from + 4]), "pixel (\(x), \(y))")
+        } }
+        #expect(try bytes(try run(-25, -50, on: try run(25, 50, on: image))) == original)
+        // A whole side's length is no slide at all, and the same image comes back untouched.
+        #expect(try run(100, -100, on: image) === image)
+        #expect(FilterSettings(offsetHorizontal: 500, offsetVertical: .nan).normalized.offsetHorizontal == 100)
+        #expect(FilterSettings(offsetHorizontal: 500, offsetVertical: .nan).normalized.offsetVertical == 50)
+    }
+
+    @Test func offsetWithNothingToSlideClosesWithoutAnUndoStep() async throws {
+        let session = EditorSession()
+        session.createDocument(width: 8, height: 8)
+        let context = try BrushRaster.context(width: 8, height: 8, mask: false)
+        context.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 8))
+        let image = try #require(context.makeImage())
+        session.insert(ImportedImage(image: image, thumbnail: image, name: "Half"))
+        let count = session.history.undoCount
+        session.beginFilter(.offset)
+        session.updateFilter(FilterSettings(offsetHorizontal: 0, offsetVertical: 100), preview: true)
+        await session.commitFilter()
+        #expect(session.filterEdit == nil && session.history.undoCount == count)
+        #expect(session.activeLayer?.asset?.image === image)
+        session.beginFilter(.offset)
+        session.updateFilter(FilterSettings(offsetHorizontal: 50, offsetVertical: 0), preview: true)
+        await session.commitFilter()
+        #expect(session.history.undoCount == count + 1 && session.history.undoName == "Offset")
+    }
+
     @Test func addNoiseChangesColorButNeverAlphaAndMonochromaticKeepsGrays() throws {
         // Left half opaque mid gray, right half transparent.
         let context = try BrushRaster.context(width: 32, height: 8, mask: false)

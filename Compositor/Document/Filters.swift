@@ -9,6 +9,7 @@ nonisolated enum FilterKind: String, CaseIterable, Sendable {
     case motionBlur = "Motion Blur"
     case addNoise = "Add Noise"
     case lensCorrection = "Lens Correction"
+    case offset = "Offset"
     case removeBackground = "Remove Background"
     case contentAwareFill = "Content-Aware Fill"
     case curves = "Curves"
@@ -44,6 +45,11 @@ nonisolated struct FilterSettings: Equatable, Sendable {
     /// Lens Correction's Remove Distortion, −100–100: positive straightens barrel distortion
     /// (lines bowing outward), negative straightens pincushion (lines bowing inward).
     var distortion: Double = 0
+    /// Offset: how far the pixels slide right, as a percentage of the layer's width, −100–100. What leaves one
+    /// edge comes back in at the other, so 50 brings a texture's seams to the middle where they can be retouched.
+    var offsetHorizontal: Double = 50
+    /// Offset: how far the pixels slide down, as a percentage of the layer's height, −100–100.
+    var offsetVertical: Double = 50
     var curves = CurvesSettings()
     var exposure = ExposureSettings()
     var gradientMap = GradientMapSettings()
@@ -66,6 +72,8 @@ nonisolated struct FilterSettings: Equatable, Sendable {
         result.distance = clamp(distance, 1...2000, 10)
         result.amount = clamp(amount, 0.1...400, 10)
         result.distortion = clamp(distortion, -100...100, 0)
+        result.offsetHorizontal = clamp(offsetHorizontal, -100...100, 50)
+        result.offsetVertical = clamp(offsetVertical, -100...100, 50)
         result.refineEdges = clamp(refineEdges, 0...40, 12)
         result.matteContrast = clamp(matteContrast, 0...100, 25)
         result.shiftEdge = clamp(shiftEdge, -10...10, 0)
@@ -118,6 +126,29 @@ nonisolated enum PixelFilter {
     /// Remove Distortion at ±100 moves the image's corners by this share of their distance from the center.
     static let lensStrength = 0.35
 
+    /// Offset's slide in whole pixels of an image this size, always forwards (0 up to the side's length), so a
+    /// percentage means the same slide on a preview as on the full layer.
+    static func offsetPixels(_ settings: FilterSettings, width: Int, height: Int) -> (x: Int, y: Int) {
+        func slide(_ percent: Double, _ side: Int) -> Int {
+            let pixels = Int((percent / 100 * Double(side)).rounded()) % side
+            return pixels < 0 ? pixels + side : pixels
+        }
+        return (slide(settings.offsetHorizontal, width), slide(settings.offsetVertical, height))
+    }
+    /// The image slid by `shift`, with what leaves each edge returning at the opposite one. Pixels are copied, never
+    /// resampled, so sliding back by the same amount restores the image exactly.
+    static func wrapped(_ image: CGImage, by shift: (x: Int, y: Int)) throws -> CGImage {
+        let width = image.width, height = image.height
+        guard shift.x != 0 || shift.y != 0 else { return image }
+        let context = try BrushRaster.context(width: width, height: height, mask: false)
+        for column in [shift.x - width, shift.x] {
+            for row in [shift.y - height, shift.y] {
+                BrushRaster.draw(image, in: CGRect(x: column, y: row, width: width, height: height), mask: false, context: context)
+            }
+        }
+        guard let result = context.makeImage() else { throw ExportError.render }
+        return result
+    }
     static func run(_ job: FilterJob) throws -> CGImage {
         let settings = job.settings.normalized
         let width = job.image.width, height = job.image.height
@@ -165,6 +196,8 @@ nonisolated enum PixelFilter {
                          width, height, source.bytesPerRow, settings.distortion / 100 * lensStrength)
             guard let corrected = destination.makeImage() else { throw ExportError.render }
             image = corrected
+        case .offset:
+            image = try wrapped(job.image, by: offsetPixels(settings, width: width, height: height))
         }
         guard let selection = job.selection else { return image }
         return try PixelAdjust.blend(image, over: job.image, through: selection, pixelToDocument: job.mapping, isMask: false)
@@ -385,6 +418,8 @@ extension EditorSession {
         }
         // No distortion to remove: close as Cancel does, without an undo step.
         if (edit.kind == .lensCorrection && edit.settings.distortion == 0)
+            || (edit.kind == .offset && PixelFilter.offsetPixels(edit.settings.normalized, width: edit.original.image.width,
+                                                                 height: edit.original.image.height) == (0, 0))
             || (edit.kind == .exposure && edit.settings.exposure == ExposureSettings())
             || (edit.kind == .grain && edit.settings.grain.amount == 0) { cancelFilter(); return }
         edit.committing = true

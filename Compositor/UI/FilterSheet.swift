@@ -47,6 +47,11 @@ struct FilterSheet: View {
             case .contentAwareFill:
                 Text("Fill the selection using surrounding pixels from this layer.")
                     .fixedSize(horizontal: false, vertical: true)
+            case .offset:
+                control("Horizontal", \.offsetHorizontal, range: -100...100, unit: "%", decimals: 0, logarithmic: false)
+                control("Vertical", \.offsetVertical, range: -100...100, unit: "%", decimals: 0, logarithmic: false)
+                Text("Pixels that leave one edge return at the other. 50% brings a texture's seams to the middle.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             case .gaussianBlur:
                 control("Radius", \.radius, range: 0.1...250, unit: "px", decimals: 1, logarithmic: true)
             case .motionBlur:
