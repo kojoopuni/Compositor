@@ -190,6 +190,22 @@ def filters_change_pixels_and_adjustments_do_not(folder):
 
 
 @test
+def offset_wraps_a_texture_and_the_tile_preview_repeats_it(folder):
+    project = os.path.join(folder, "tile.comp")
+    run("new", project, "--width", 40, "--height", 40)
+    run("add-layer", project, os.path.join(folder, "split.png"), "--name", "Split")  # black left half, white right
+    run("filter", project, "Split", "Offset", "--horizontal", 25, "--vertical", 0)
+    assert near(sample(project, 5, 20), (255, 255, 255, 255)), "the white that left the right edge came back on the left"
+    assert near(sample(project, 15, 20), (0, 0, 0, 255)) and near(sample(project, 35, 20), (255, 255, 255, 255))
+    run("filter", project, "Split", "Offset", "--horizontal", -25, "--vertical", 0)
+    assert near(sample(project, 5, 20), (0, 0, 0, 255)) and near(sample(project, 25, 20), (255, 255, 255, 255)), "sliding back restores it"
+    sheet = run("tile-preview", project, "--out", os.path.join(folder, "sheet.png"), "--repeat", 3)
+    assert (sheet["width"], sheet["height"], sheet["tile"]) == (120, 120, {"width": 40, "height": 40})
+    small = run("tile-preview", project, "--out", os.path.join(folder, "small.png"), "--max-size", 90)
+    assert (small["width"], small["tile"]["width"]) == (90, 30)
+
+
+@test
 def resizing_resamples_and_canvas_size_does_not(folder):
     project = os.path.join(folder, "size.comp")
     run("new", project, "--width", 40, "--height", 40)

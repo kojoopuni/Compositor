@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { options, resolvePath, run } from "../cli.js";
 import { DESTROYS, EDITS, failed, layer, ok, project } from "../shared.js";
 
-const FILTERS = ["Gaussian Blur", "Motion Blur", "Add Noise", "Lens Correction", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
+const FILTERS = ["Gaussian Blur", "Motion Blur", "Add Noise", "Lens Correction", "Offset", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
 const ADJUSTMENTS = ["Hue/Saturation", "Levels", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
 
 /** Tools that mask, adjust or filter. Masks and adjustment layers are non-destructive; filters rewrite pixels. */
@@ -138,7 +138,9 @@ export function registerPixelTools(server: McpServer) {
         "Rewrites one layer's pixels; there is no undo from here, so for color changes prefer compositor_add_adjustment. " +
         "Settings by filter — Gaussian Blur: radius (0.1–250 px). Motion Blur: angle (−90–90°), distance (px). " +
         "Add Noise: amount (0.1–400 %), gaussian, monochromatic. Lens Correction: distortion (−100–100). " +
-        "Exposure: exposure, offset, gamma. Blurs spread past the layer's edges: the layer grows, and its original " +
+        "Offset: horizontal, vertical (percent of the layer's size; pixels leaving one edge return at the other, " +
+        "copied exactly, so the opposite values undo it). Offset 50/50 brings a texture's seams to the middle for " +
+        "retouching; check tiling with compositor_tile_preview. Exposure: exposure, offset, gamma. Blurs spread past the layer's edges: the layer grows, and its original " +
         "border becomes about half transparent, fading over roughly three times the radius. So a blurred layer that " +
         "filled the canvas no longer covers its borders; scale it up first so the fade falls outside the canvas, and " +
         "confirm with compositor_sample_color on a border pixel (alpha 255) rather than assuming.",
@@ -149,6 +151,8 @@ export function registerPixelTools(server: McpServer) {
         distance: z.number().min(1).max(2000).optional(), amount: z.number().min(0.1).max(400).optional(),
         gaussian: z.boolean().optional(), monochromatic: z.boolean().optional(),
         distortion: z.number().min(-100).max(100).optional(),
+        horizontal: z.number().min(-100).max(100).optional().describe("Offset: slide right, percent of the layer's width (default 50)."),
+        vertical: z.number().min(-100).max(100).optional().describe("Offset: slide down, percent of the layer's height (default 50)."),
         exposure: z.number().min(-20).max(20).optional(), offset: z.number().min(-0.5).max(0.5).optional(),
         gamma: z.number().min(0.01).max(9.99).optional(),
       },
@@ -159,6 +163,7 @@ export function registerPixelTools(server: McpServer) {
         return ok(await run("filter", [resolvePath(input.project), input.layer, input.filter, ...options({
           radius: input.radius, angle: input.angle, distance: input.distance, amount: input.amount,
           gaussian: input.gaussian, monochromatic: input.monochromatic, distortion: input.distortion,
+          horizontal: input.horizontal, vertical: input.vertical,
           exposure: input.exposure, offset: input.offset, gamma: input.gamma,
         }, ["gaussian", "monochromatic"])]));
       } catch (error) { return failed(error); }

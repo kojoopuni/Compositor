@@ -7,7 +7,7 @@ import ImageIO
 extension Commands {
     /// compositor-cli filter <project> <layer> <filter name> [settings]
     /// Settings: --radius, --angle, --distance, --amount, --gaussian, --monochromatic, --distortion,
-    /// --exposure, --offset, --gamma.
+    /// --horizontal, --vertical (Offset, percent), --exposure, --offset, --gamma.
     static func filter(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let workspace = try await Workspace.open(try arguments.url(0, "the project"))
@@ -23,6 +23,8 @@ extension Commands {
         if let value = try arguments.number("distance") { settings.distance = value }
         if let value = try arguments.number("amount") { settings.amount = value }
         if let value = try arguments.number("distortion") { settings.distortion = value }
+        if let value = try arguments.number("horizontal") { settings.offsetHorizontal = value }
+        if let value = try arguments.number("vertical") { settings.offsetVertical = value }
         settings.gaussian = arguments.flag("gaussian")
         settings.monochromatic = arguments.flag("monochromatic")
         try read(&settings.exposure, arguments)
