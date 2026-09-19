@@ -16,6 +16,12 @@ nonisolated enum FilterKind: String, CaseIterable, Sendable {
     case unsharpMask = "Unsharp Mask"
     case normalMap = "Height to Normal Map"
     case clouds = "Clouds"
+    case blackWhite = "Black & White"
+    case threshold = "Threshold"
+    case posterize = "Posterize"
+    case vibrance = "Vibrance"
+    case colorBalance = "Color Balance"
+    case photoFilter = "Photo Filter"
     case removeBackground = "Remove Background"
     case contentAwareFill = "Content-Aware Fill"
     case curves = "Curves"
@@ -24,7 +30,7 @@ nonisolated enum FilterKind: String, CaseIterable, Sendable {
     case grain = "Grain"
     var isAutomatic: Bool { self == .contentAwareFill || self == .removeBackground }
     /// Color adjustments: in the Image menu (and editable as adjustment layers), not under Filter.
-    var isImageAdjustment: Bool { self == .curves || self == .exposure || self == .gradientMap || self == .grain }
+    var isImageAdjustment: Bool { self == .curves || self == .exposure || self == .gradientMap || self == .grain || ColorAdjustments.kinds.contains(self) }
 }
 
 /// Remove Background's two ways of working: Apple's own subject mask on its own, or that mask refined against the
@@ -85,6 +91,8 @@ nonisolated struct FilterSettings: Equatable, Sendable {
     var exposure = ExposureSettings()
     var gradientMap = GradientMapSettings()
     var grain = GrainSettings()
+    /// Black & White, Threshold, Posterize, Vibrance, Color Balance and Photo Filter.
+    var color = ColorAdjustments()
     /// Remove Background: Basic is the quick subject mask; Advanced refines it (see the three settings below).
     var backgroundQuality: BackgroundQuality = .basic
     /// Remove Background: how far the mask is pulled onto the image's own edges (0 off, in layer pixels).
@@ -120,6 +128,7 @@ nonisolated struct FilterSettings: Equatable, Sendable {
         result.exposure = exposure.normalized
         result.gradientMap = gradientMap.normalized
         result.grain = grain.normalized
+        result.color = color.normalized
         return result
     }
 }
@@ -253,6 +262,8 @@ nonisolated enum PixelFilter {
             // A preview has fewer pixels across the same slopes, so each step is taller; scaling keeps the look.
             image = try TextureFilter.normalMap(job.image, strength: settings.normalStrength * job.scale,
                                                 yDown: settings.normalYDown, wrap: settings.normalWrap)
+        case .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
+            image = try settings.color.apply(job.kind, to: job.image)
         case .clouds:
             image = try TextureFilter.clouds(width: width, height: height, cells: settings.cloudCells, seed: job.seed)
         }
@@ -479,7 +490,8 @@ extension EditorSession {
             || (edit.kind == .offset && PixelFilter.offsetPixels(edit.settings.normalized, width: edit.original.image.width,
                                                                  height: edit.original.image.height) == (0, 0))
             || (edit.kind == .exposure && edit.settings.exposure == ExposureSettings())
-            || (edit.kind == .grain && edit.settings.grain.amount == 0) { cancelFilter(); return }
+            || (edit.kind == .grain && edit.settings.grain.amount == 0)
+            || edit.settings.color.isIdentity(edit.kind) { cancelFilter(); return }
         edit.committing = true
         edit.previewTask?.cancel()
         filterSettings = edit.settings

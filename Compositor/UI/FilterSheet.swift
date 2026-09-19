@@ -51,6 +51,9 @@ struct FilterSheet: View {
                 control("Horizontal", \.offsetHorizontal, range: -100...100, unit: "%", decimals: 0, logarithmic: false)
                 control("Vertical", \.offsetVertical, range: -100...100, unit: "%", decimals: 0, logarithmic: false)
                 note("Pixels that leave one edge return at the other. 50% brings a texture's seams to the middle.")
+            case .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
+                ColorAdjustmentControls(kind: edit?.kind ?? .blackWhite,
+                                        settings: Binding(get: { settings.color }, set: { new in update { $0.color = new } }))
             case .makeTileable:
                 control("Seam Band", \.tileBand, range: 2...40, unit: "%", decimals: 0, logarithmic: false)
                 control("Even Lighting", \.tileLighting, range: 0...100, unit: "%", decimals: 0, logarithmic: false)

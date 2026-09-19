@@ -4,8 +4,16 @@ import CoreImage
 nonisolated enum AdjustmentKind: String, Codable, CaseIterable, Sendable {
     case hsv = "Hue/Saturation", levels = "Levels", curves = "Curves"
     case exposure = "Exposure", gradientMap = "Gradient Map", grain = "Grain"
+    case blackWhite = "Black & White", threshold = "Threshold", posterize = "Posterize"
+    case vibrance = "Vibrance", colorBalance = "Color Balance", photoFilter = "Photo Filter"
     var symbol: String {
         switch self {
+        case .blackWhite: return "circle.righthalf.filled"
+        case .threshold: return "square.righthalf.filled"
+        case .posterize: return "square.stack.3d.up"
+        case .vibrance: return "sparkles"
+        case .colorBalance: return "scalemass"
+        case .photoFilter: return "camera.filters"
         case .curves: return "point.topleft.down.to.point.bottomright.curvepath"
         case .levels: return "slider.horizontal.3"
         case .hsv: return "circle.lefthalf.filled"
@@ -21,6 +29,12 @@ nonisolated enum AdjustmentKind: String, Codable, CaseIterable, Sendable {
         case .exposure: return .exposure
         case .gradientMap: return .gradientMap
         case .grain: return .grain
+        case .blackWhite: return .blackWhite
+        case .threshold: return .threshold
+        case .posterize: return .posterize
+        case .vibrance: return .vibrance
+        case .colorBalance: return .colorBalance
+        case .photoFilter: return .photoFilter
         case .hsv, .levels: return nil
         }
     }
@@ -42,6 +56,11 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
     var exposureSettings: ExposureSettings?
     var gradientMapSettings: GradientMapSettings?
     var grainSettings: GrainSettings?
+    var colorSettings: ColorAdjustments?
+    var color: ColorAdjustments {
+        get { colorSettings ?? ColorAdjustments() }
+        set { colorSettings = newValue }
+    }
     var exposure: ExposureSettings {
         get { exposureSettings ?? ExposureSettings() }
         set { exposureSettings = newValue }
@@ -62,7 +81,7 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
         }
         && resolvedHSV.bands.values.allSatisfy { $0.handles.allSatisfy { $0.isFinite } }
         && levels.ranges.count == 4 && levels.ranges.allSatisfy { $0 == $0.normalized } && curves.isValid
-        && exposure.isValid && gradientMap.isValid && grain.isValid
+        && exposure.isValid && gradientMap.isValid && grain.isValid && color.isValid
     }
     /// `region` is the part of the document `image` covers (the whole image at one unit per pixel when
     /// omitted), so Grain's pattern stays fixed in the document however the canvas splits its drawing.
@@ -76,6 +95,8 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
         case .curves: return try curves.apply(image)
         case .exposure: return try exposure.apply(image)
         case .gradientMap: return try gradientMap.apply(image)
+        case .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
+            return try color.apply(kind.filterKind ?? .blackWhite, to: image)
         case .grain:
             let region = region ?? CGRect(x: 0, y: 0, width: image.width, height: image.height)
             return try grain.apply(image, origin: region.origin, unitsPerPixel: region.width / CGFloat(max(1, image.width)))

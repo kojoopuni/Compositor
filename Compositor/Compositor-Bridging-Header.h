@@ -7,3 +7,4 @@
 #import "Rendering/ContentFill.h"
 #import "Rendering/AdjustPixels.h"
 #import "Rendering/TexturePixels.h"
+#import "Rendering/ColorPixels.h"

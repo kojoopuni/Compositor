@@ -38,8 +38,9 @@ extension EditorSession {
                 let edit = try HueSaturationEdit(layerID: layer.id, original: asset, selection: nil, transform: layer.transform)
                 edit.settings = original.resolvedHSV
                 hueSaturation = edit
-            case .curves, .exposure, .gradientMap, .grain:
+            case .curves, .exposure, .gradientMap, .grain, .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
                 var settings = FilterSettings()
+                settings.color = original.color
                 settings.curves = original.curves
                 settings.exposure = original.exposure
                 settings.gradientMap = original.gradientMap
@@ -64,9 +65,10 @@ extension EditorSession {
         case .hsv:
             guard let hueSaturation else { return nil }
             value.hsvSettings = hueSaturation.settings
-        case .curves, .exposure, .gradientMap, .grain:
+        case .curves, .exposure, .gradientMap, .grain, .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
             guard let filterEdit else { return nil }
             switch value.kind {
+            case .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter: value.color = filterEdit.settings.color
             case .exposure: value.exposure = filterEdit.settings.exposure
             case .gradientMap: value.gradientMap = filterEdit.settings.gradientMap
             case .grain: value.grain = filterEdit.settings.grain

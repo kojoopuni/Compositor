@@ -60,7 +60,8 @@ struct FloatingPanelTests {
         switch kind {
         case .levels: controller.show(title: "Levels", content: LevelsSheet(session: session))
         case .hsv: controller.show(title: "Hue/Saturation", content: HueSaturationSheet(session: session))
-        case .curves, .exposure, .gradientMap, .grain: controller.show(title: kind.rawValue, content: FilterSheet(session: session))
+        // Every other kind is edited in the shared filter panel.
+        default: controller.show(title: kind.rawValue, content: FilterSheet(session: session))
         }
         settle()
         let panel = try #require(NSApp.windows.first { $0.identifier == controller.identifier })

@@ -21,6 +21,11 @@ struct ExportFormatItems: View {
 struct TrimItem: View {
     let session: EditorSession
     var body: some View {
+        ForEach(ColorAdjustments.kinds, id: \.self) { kind in
+            Button("\(kind.rawValue)…") { session.beginFilter(kind) }
+                .disabled(!session.canAdjustColors || session.hueSaturation != nil)
+        }
+        Divider()
         Button("Trim Transparent Pixels") { Task { await session.trimTransparentPixels() } }
             .disabled(!session.canTrim)
     }
