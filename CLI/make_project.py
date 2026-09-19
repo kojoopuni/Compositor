@@ -38,10 +38,12 @@ def identifier(name):
 
 def excluded():
     paths = [path for path in WINDOWED if os.path.exists(os.path.join(ENGINE, path))]
-    for folder, _, files in os.walk(os.path.join(ENGINE, "UI")):
-        for file in files:
-            if not file.startswith("."):
-                paths.append(os.path.relpath(os.path.join(folder, file), ENGINE))
+    # Whole folders of interface code: the panels and views, and the server that drives the running app.
+    for name in ["UI", "Control"]:
+        for folder, _, files in os.walk(os.path.join(ENGINE, name)):
+            for file in files:
+                if not file.startswith("."):
+                    paths.append(os.path.relpath(os.path.join(folder, file), ENGINE))
     return sorted(paths)
 
 

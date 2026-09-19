@@ -1,6 +1,6 @@
 // End-to-end test: starts the real server over stdio and drives it as an MCP client would.
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,8 +28,25 @@ function png(width: number, height: number, pixel: (x: number, y: number) => [nu
 }
 
 const folder = await mkdtemp(path.join(tmpdir(), "compositor-mcp-"));
+// A stand-in image model: a script that writes a flat picture, so the generation tools are tested without one.
+const fake = path.join(folder, "fake-model.mjs");
+await writeFile(fake, `import { writeFileSync } from "node:fs"; import { deflateSync, crc32 } from "node:zlib";
+const [output, width, height, red] = [process.argv[2], +process.argv[3] || 64, +process.argv[4] || 64, +process.argv[5] || 0];
+const rows = Buffer.alloc((width * 4 + 1) * height);
+for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) rows.set([red, 200, 0, 255], y * (width * 4 + 1) + 1 + x * 4);
+const chunk = (kind, data) => { const body = Buffer.concat([Buffer.from(kind), data]); const length = Buffer.alloc(4); length.writeUInt32BE(data.length); const sum = Buffer.alloc(4); sum.writeUInt32BE(crc32(body) >>> 0); return Buffer.concat([length, body, sum]); };
+const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header.set([8, 6, 0, 0, 0], 8);
+writeFileSync(output, Buffer.concat([Buffer.from("\\x89PNG\\r\\n\\x1a\\n", "latin1"), chunk("IHDR", header), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]));
+`.replaceAll("\\\\", "\\"));
+const config = path.join(folder, "config");
+await mkdir(config, { recursive: true });
+await writeFile(path.join(config, "providers.json"), JSON.stringify({ current: {}, providers: {
+  fake: { kind: "command", capabilities: ["generate", "edit", "upscale"], note: "test stand-in", run: {
+    generate: ["node", fake, "{output}", "{width}", "{height}", "255"], edit: ["node", fake, "{output}", "48", "48", "0"], upscale: ["node", fake, "{output}", "128", "128", "0"] } },
+  missing: { kind: "mflux", command: "mflux-not-installed", capabilities: ["generate"] },
+} }));
 const client = new Client({ name: "compositor-mcp-test", version: "0" });
-await client.connect(new StdioClientTransport({ command: "node", args: [path.join(here, "index.js")] }));
+await client.connect(new StdioClientTransport({ command: "node", args: [path.join(here, "index.js")], env: { ...process.env, COMPOSITOR_CONFIG: config } as Record<string, string> }));
 
 type Content = { type: string; text?: string; data?: string; mimeType?: string };
 async function call(name: string, args: Record<string, unknown>) {
@@ -51,7 +68,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 23);
+    assert.equal(tools.length, 36);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -122,7 +139,7 @@ try {
     await writeFile(path.join(folder, "lit.png"), png(64, 64, (x, y) => { const v = 60 + x * 2 + ((x * 7 + y * 13) % 23); return [v, v, v, 255]; }));
     await call("compositor_new_project", { project: texture, width: 64, height: 64 });
     await call("compositor_add_image_layer", { project: texture, image: path.join(folder, "lit.png"), name: "Stone" });
-    const tiled = await call("compositor_make_tileable", { project: texture, layer: "Stone", band: 14, lighting: 100 });
+    const tiled = await call("compositor_make_tileable", { project: texture, layer: "Stone", method: "patch", band: 14, lighting: 100 });
     assert.ok(!tiled.failed, JSON.stringify(tiled.content));
     const left = await call("compositor_sample_color", { project: texture, x: 0, y: 30 }), right = await call("compositor_sample_color", { project: texture, x: 63, y: 30 });
     assert.ok(Math.abs(left.data?.red - right.data?.red) < 40, `edges ${left.data?.red} and ${right.data?.red}`);
@@ -138,6 +155,48 @@ try {
     assert.ok(!tga.failed);
   });
 
+  await test("image providers are pluggable, and none is a built-in default", async () => {
+    const listed = await call("compositor_list_providers", {});
+    const byName = Object.fromEntries(listed.data?.providers.map((entry: any) => [entry.name, entry]));
+    assert.equal(byName.fake.available, true);
+    assert.ok(byName.missing.available === false && /not found/.test(byName.missing.problem));
+    assert.deepEqual(listed.data?.current, {});
+    const scene = path.join(folder, "generated.comp");
+    const unnamed = await call("compositor_generate_image", { prompt: "mossy stone wall", project: scene, width: 256, height: 256 });
+    assert.ok(unnamed.failed && /Nothing is built in as a default/.test(unnamed.content[0].text ?? ""), unnamed.content[0].text);
+    const made = await call("compositor_generate_image", { prompt: "mossy stone wall", project: scene, width: 256, height: 256, provider: "fake", seed: 7 });
+    assert.ok(!made.failed && made.data?.seed === 7 && made.data?.provider === "fake", JSON.stringify(made.content));
+    assert.equal((await call("compositor_sample_color", { project: scene, x: 30, y: 30 })).data?.red, 255);
+    await call("compositor_set_current_provider", { capability: "edit", provider: "fake" });
+    const filled = await call("compositor_generative_fill", { project: scene, region: { x: 64, y: 64, width: 128, height: 128 }, instruction: "plain grass", context: 32, feather: 16 });
+    assert.ok(!filled.failed, JSON.stringify(filled.content));
+    assert.deepEqual(filled.data?.area, { x: 32, y: 32, width: 192, height: 192 });
+    assert.equal((await call("compositor_sample_color", { project: scene, x: 128, y: 128 })).data?.red, 0, "the middle of the area is the new layer");
+    assert.equal((await call("compositor_sample_color", { project: scene, x: 40, y: 40 })).data?.red, 255, "the context around it is masked away");
+    const surface = path.join(folder, "surface.comp");
+    await call("compositor_generate_image", { prompt: "cobblestones", project: surface, width: 256, height: 256, provider: "fake", layer_name: "Cobble" });
+    const healed = await call("compositor_make_tileable", { project: surface, layer: "Cobble", method: "model" });
+    assert.ok(!healed.failed && healed.data?.method === "model", JSON.stringify(healed.content));
+    const after = await call("compositor_get_info", { project: surface });
+    assert.deepEqual(after.data?.layers.map((entry: any) => [entry.name, entry.visible]).slice(0, 2), [["Cobble (tileable)", true], ["Cobble", false]]);
+    // The stand-in model paints green-black (red 0); only the cross over the seams, slid back to the edges, takes it.
+    assert.equal((await call("compositor_sample_color", { project: surface, x: 1, y: 100 })).data?.red, 0, "the repaired band ends up at the tile's edges");
+    assert.equal((await call("compositor_sample_color", { project: surface, x: 128, y: 128 })).data?.red, 255, "the middle of the tile is untouched");
+    const edited = await call("compositor_edit_image", { project: scene, instruction: "make it autumn" });
+    assert.ok(!edited.failed && edited.data?.layer);
+    const bigger = await call("compositor_upscale_image", { image: path.join(folder, "red.png"), output: path.join(folder, "big.png"), provider: "fake" });
+    assert.ok(!bigger.failed);
+    const log = (await readFile(path.join(config, "generations.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(log.map((entry) => entry.capability), ["generate", "edit", "generate", "edit", "edit", "upscale"]);
+    assert.ok(log[0].prompt === "mossy stone wall" && log[0].seed === 7);
+  });
+
+  await test("live tools say how to switch control on when the app is not listening", async () => {
+    const status = await call("compositor_live_status", {});
+    // With the app closed this must fail helpfully; with it open and control on, it answers.
+    assert.ok(status.failed ? /Allow Assistant Control/.test(status.content[0].text ?? "") : status.data?.open !== undefined);
+  });
+
   await test("mistakes come back as errors that say what to do", async () => {
     const missing = await call("compositor_set_layer", { project, layer: "Nope", opacity: 50 });
     assert.ok(missing.failed && /no layer/.test(missing.content[0].text ?? ""));
@@ -149,7 +208,7 @@ try {
     assert.ok(subject.failed && /subject/i.test(subject.content[0].text ?? ""));
   });
 
-  console.log(`${passed} of 7 passed`);
+  console.log(`${passed} of 9 passed`);
 } finally {
   await client.close();
   await rm(folder, { recursive: true, force: true });

@@ -3,6 +3,8 @@ import { registerLayerTools } from "./tools/layers.js";
 import { registerLookTools } from "./tools/look.js";
 import { registerPixelTools } from "./tools/pixels.js";
 import { registerTextureTools } from "./tools/textures.js";
+import { registerGenerateTools } from "./tools/generate.js";
+import { registerLiveTools } from "./tools/live.js";
 
 export function createServer(): McpServer {
   const server = new McpServer(
@@ -24,5 +26,7 @@ export function createServer(): McpServer {
   registerLayerTools(server);
   registerPixelTools(server);
   registerTextureTools(server);
+  registerGenerateTools(server);
+  registerLiveTools(server);
   return server;
 }

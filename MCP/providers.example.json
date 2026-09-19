@@ -1,0 +1,41 @@
+{
+  "current": {},
+  "providers": {
+    "flux2-klein-4b": {
+      "kind": "mflux", "command": "mflux-generate-flux2", "model": "flux2-klein-4b", "steps": 4,
+      "capabilities": ["generate"],
+      "note": "Local. FLUX.2 klein 4B, distilled to 4 steps. Apache 2.0 weights. Measured on an M2 Max (96 GB): 22 s per 1024 px image at full precision, 31 s with quantize 8 (quantizing costs more than it saves when memory is plentiful), 18 GB peak. First run downloads about 13 GB."
+    },
+    "flux2-klein-4b-edit": {
+      "kind": "mflux", "command": "mflux-generate-flux2-edit", "model": "flux2-klein-4b", "steps": 4,
+      "capabilities": ["edit"],
+      "note": "Local. FLUX.2 klein 4B following an instruction on an existing image. Measured on an M2 Max: 47 s per 1024 px edit. Same weights as flux2-klein-4b."
+    },
+    "z-image-turbo": {
+      "kind": "mflux", "command": "mflux-generate-z-image-turbo", "steps": 9, "quantize": 8,
+      "capabilities": ["generate"],
+      "note": "Local. Z-Image Turbo 6B: strong photorealism. Check the weights' license before commercial use."
+    },
+    "qwen-image-edit": {
+      "kind": "mflux", "command": "mflux-generate-qwen-edit", "model": "qwen-image-edit", "quantize": 8,
+      "capabilities": ["edit"],
+      "note": "Local. Qwen-Image-Edit 20B: heavier, slower, better at following complex edits. Apache 2.0."
+    },
+    "seedvr2-upscale": {
+      "kind": "mflux", "command": "mflux-upscale-seedvr2", "model": "seedvr2-3b",
+      "capabilities": ["upscale"],
+      "note": "Local. SeedVR2 3B: adds plausible detail while enlarging, unlike plain resizing."
+    },
+    "gemini-image": {
+      "kind": "gemini", "model": "gemini-2.5-flash-image", "apiKeyEnv": "GEMINI_API_KEY",
+      "capabilities": ["generate", "edit"],
+      "note": "Cloud. Seconds per image. Needs GEMINI_API_KEY in the environment; change model to whichever Gemini image model is current."
+    },
+    "example-command": {
+      "kind": "command",
+      "capabilities": [],
+      "run": { "generate": ["my-tool", "--prompt", "{prompt}", "--width", "{width}", "--height", "{height}", "--seed", "{seed}", "--out", "{output}"] },
+      "note": "Template for any other scriptable runner (Draw Things CLI, a ComfyUI script). List its capabilities to enable it."
+    }
+  }
+}

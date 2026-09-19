@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { options, resolvePath, run } from "../cli.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { grayPNG } from "../png.js";
+import { edit } from "../providers/index.js";
 import { DESTROYS, EDITS, failed, layer, ok, project } from "../shared.js";
 
 const FILTERS = ["Gaussian Blur", "Motion Blur", "Add Noise", "Lens Correction", "Offset", "Make Tileable",
@@ -99,23 +104,33 @@ export function registerPixelTools(server: McpServer) {
     {
       title: "Make a texture layer tile without seams",
       description:
-        "The app's Filter > Make Tileable. Rewrites one layer so it repeats cleanly: evens out broad lighting differences (a texture brighter on one " +
-        "side can never tile), slides the pixels half way round so the seams meet in the middle, rebuilds a " +
-        "cross-shaped band over them from the surrounding texture, and slides them back. Works best on fairly " +
-        "uniform surfaces (stone, soil, bark, fabric, plaster); distinct objects crossing the seam band will be " +
-        "smeared. Always judge the result with compositor_tile_preview, looking for strips along the tile joins " +
-        "(try a wider or narrower band) and for features that repeat too obviously. The layer should fill the " +
-        "canvas and be unrotated. There is no undo from here, so work on a copy of a texture you cannot regenerate.",
+        "Makes one layer repeat cleanly. Both methods first slide the pixels half way round so the seams meet in the " +
+        "middle, repair a cross-shaped band over them, and slide the pixels back; they differ in how the band is " +
+        "repaired. method 'patch' is the app's Filter > Make Tileable: it also evens broad lighting, and rebuilds the " +
+        "band from small patches of the surrounding texture. It is instant and right for fine-grained surfaces (soil, " +
+        "sand, plaster, concrete, fabric, noise) but smears anything made of distinct shapes. method 'model' asks an " +
+        "image model (an 'edit' provider) to redraw the band, keeping only that band from its answer, so everything " +
+        "else stays pixel-identical: right for bricks, cobbles, planks, tiles, leaves, and takes as long as one edit " +
+        "(under a minute locally). Models tend to settle the seam with one long straight gap between shapes, which passes " +
+        "on gridded surfaces and can show on irregular ones; try another seed if it does. It leaves the original layer " +
+        "hidden beneath a new '(tileable)' layer. Always judge " +
+        "the result with compositor_tile_preview. The layer should fill the canvas and be unrotated. The model method " +
+        "has no screen in the app yet.",
       inputSchema: {
         project, layer,
-        band: z.number().min(2).max(40).optional().describe("Width of the rebuilt band, as a percentage of the layer's shorter side (default 12)."),
-        lighting: z.number().min(0).max(100).optional().describe("How much broad light and shade is flattened first (default 100). Lower it, or use 0, for a texture whose large light and dark areas are part of its look."),
+        method: z.enum(["patch", "model"]).describe("patch: fine-grained surfaces. model: surfaces made of distinct shapes."),
+        band: z.number().min(2).max(40).optional().describe("Width of the repaired band, as a percentage of the shorter side (default 12; the model method defaults to 16)."),
+        lighting: z.number().min(0).max(100).optional().describe("patch only: how much broad light and shade is flattened first (default 100). Use 0 to keep it."),
+        provider: z.string().min(1).optional().describe("model only: an 'edit' provider from compositor_list_providers; omit to use the user's current one."),
+        seed: z.number().int().min(0).optional(),
       },
       annotations: DESTROYS,
     },
-    async ({ project, layer, band, lighting }) => {
+    async ({ project, layer, method, band, lighting, provider, seed }) => {
       try {
-        return ok(await run("make-tileable", [resolvePath(project), layer, ...options({ band, lighting })]));
+        const target = resolvePath(project);
+        if (method === "patch") return ok(await run("make-tileable", [target, layer, ...options({ band, lighting })]));
+        return await healSeamsWithModel(target, layer, band ?? 16, provider, seed);
       } catch (error) { return failed(error); }
     },
   );
@@ -208,4 +223,48 @@ export function registerPixelTools(server: McpServer) {
       } catch (error) { return failed(error); }
     },
   );
+}
+
+/**
+ * Seams healed by an image model. The model sees the whole texture with its seams in the middle and redraws it; only a
+ * soft-edged cross over the seams is kept from its answer, so the rest of the texture is untouched.
+ */
+async function healSeamsWithModel(target: string, layerName: string, band: number, provider?: string, seed?: number) {
+  const folder = await mkdtemp(path.join(tmpdir(), "compositor-tileable-"));
+  try {
+    const info = await run("info", [target]) as { width: number; height: number; layers: { id: string; name: string; width: number; height: number; x: number; y: number }[] };
+    const source = info.layers.find((entry) => entry.id === layerName || entry.name === layerName);
+    if (!source) throw new Error(`no layer has the id or name '${layerName}'`);
+    if (source.width !== info.width || source.height !== info.height || source.x !== 0 || source.y !== 0) {
+      throw new Error("the layer must fill the canvas exactly; crop or resize the project to the texture first");
+    }
+    const { width, height } = info;
+    await run("filter", [target, source.id, "Offset", "--horizontal", "50", "--vertical", "50"]);
+    const seams = path.join(folder, "seams.png"), healed = path.join(folder, "healed.png"), mask = path.join(folder, "mask.png"), flat = path.join(folder, "flat.png");
+    await run("export", [target, "--out", seams]);
+    const result = await edit({
+      image: seams, seed, output: healed,
+      instruction: "Repair this texture. A seam runs vertically down the exact center and another horizontally across the exact middle, " +
+        "where shapes are cut off and do not line up. Redraw the surface along those two lines so every shape is whole and continues " +
+        "naturally across them. Keep the same material, colors, scale and lighting, and keep everything away from those lines exactly as it is.",
+    }, provider);
+    const added = await run("add-layer", [target, healed, ...options({ name: "Seam repair", x: 0, y: 0, width, height })]);
+    const half = Math.max(2, Math.min(width, height) * band / 100 / 2), soft = Math.max(1, half * 0.6);
+    await writeFile(mask, grayPNG(width, height, (x, y) => {
+      const distance = Math.min(Math.abs(x + 0.5 - width / 2), Math.abs(y + 0.5 - height / 2));
+      return 255 * Math.max(0, Math.min(1, (half - distance) / soft));
+    }));
+    await run("set-mask", [target, String(added.added), mask]);
+    // Flattened so the repaired texture can be slid back as one piece; the original stays beneath, hidden.
+    await run("export", [target, "--out", flat]);
+    await run("delete-layer", [target, String(added.added)]);
+    await run("filter", [target, source.id, "Offset", "--horizontal", "-50", "--vertical", "-50"]);
+    await run("set-layer", [target, source.id, "--visible", "false"]);
+    const tileable = await run("add-layer", [target, flat, ...options({ name: `${source.name} (tileable)`, x: 0, y: 0 })]);
+    await run("filter", [target, String(tileable.added), "Offset", "--horizontal", "-50", "--vertical", "-50"]);
+    return ok({ tileable: tileable.added, original: source.id, method: "model", provider: result.provider, model: result.model, seconds: result.seconds, band },
+      "Judge it with compositor_tile_preview. The original layer is hidden beneath; show it and delete the new one to go back.");
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 }
