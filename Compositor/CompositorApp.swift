@@ -180,6 +180,7 @@ struct CompositorApp: App {
                         .disabled(!session.canModifySelection)
                     Button("Contract by \(session.selectionContractAmount) px") { session.contractSelection(by: session.selectionContractAmount) }
                         .disabled(!session.canModifySelection)
+                    SmartSelectionItems(session: session)
                 }
                 CommandMenu("Image") {
                     Button("Curves…") { session.beginFilter(.curves) }
