@@ -19,6 +19,7 @@ enum Commands {
         case "set-layer": return try await setLayer(rest)
         case "add-text": return try await addText(rest)
         case "set-text": return try await setText(rest)
+        case "add-effect": return try await addEffect(rest)
         case "delete-layer": return try await deleteLayer(rest)
         case "add-folder": return try await addEmptyLayer(rest, folder: true)
         case "add-blank-layer": return try await addEmptyLayer(rest, folder: false)
@@ -80,6 +81,7 @@ enum Commands {
           add-text         <project> "<text>" [--font F --size PX --color r,g,b --align left|center|right
                            --tracking N --leading N --wrap PX --x X --y Y --name N] [appearance]
           set-text         <project> <layer> [--text "<text>"] [the add-text options]
+          add-effect       <project> <layer> shadow|glow|stroke [--size PX --distance PX --angle DEG --opacity 0-100 --color r,g,b]
           set-layer        <project> <layer> [--name N] [--visible true|false] [placement] [appearance]
           move-layer       <project> <layer> --top | --bottom | --out | --above LAYER | --into FOLDER
           delete-layer     <project> <layer>

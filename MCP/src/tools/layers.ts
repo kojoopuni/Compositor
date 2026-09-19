@@ -107,6 +107,33 @@ export function registerLayerTools(server: McpServer) {
   );
 
   server.registerTool(
+    "compositor_add_layer_effect",
+    {
+      title: "Add a drop shadow, glow or stroke to a layer",
+      description:
+        "The app's Layer > Layer Effects. The effect is drawn from the layer's outline (pixels through its mask, as " +
+        "placed and rotated) and added as its own layer directly beneath it, named after it, so it can be faded, " +
+        "masked, moved or deleted like any layer. It does not follow later changes to its layer: delete it and add it " +
+        "again after moving or editing the source. Works on cut-outs and text alike; a layer that fills the canvas " +
+        "has no outline to show. shadow: size is blur, distance how far it falls, angle where the light comes from " +
+        "(degrees counterclockwise from the right; 120 is upper left). glow: size is spread. stroke: size is thickness.",
+      inputSchema: {
+        project, layer,
+        effect: z.enum(["shadow", "glow", "stroke"]),
+        size: z.number().min(0).max(500).optional(), distance: z.number().min(0).max(2000).optional(), angle: z.number().optional(),
+        opacity: z.number().min(0).max(100).optional(),
+        color: z.object({ red: z.number().int().min(0).max(255), green: z.number().int().min(0).max(255), blue: z.number().int().min(0).max(255) }).optional(),
+      },
+      annotations: EDITS,
+    },
+    async ({ project, layer, effect, size, distance, angle, opacity, color }) => {
+      try {
+        return ok(await run("add-effect", [resolvePath(project), layer, effect, ...options({ size, distance, angle, opacity, color: color ? `${color.red},${color.green},${color.blue}` : undefined })]));
+      } catch (error) { return failed(error); }
+    },
+  );
+
+  server.registerTool(
     "compositor_add_empty_layer",
     {
       title: "Add a blank layer or a folder",

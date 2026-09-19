@@ -68,7 +68,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 38);
+    assert.equal(tools.length, 39);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -201,6 +201,8 @@ try {
     const info = await call("compositor_get_info", { project: card });
     const title = info.data?.layers[0];
     assert.ok(title.kind === "text" && title.text === "The Ruins" && title.fontSize === 30 && title.blendMode === "Linear Dodge (Add)", JSON.stringify(title));
+    const glow = await call("compositor_add_layer_effect", { project: card, layer: "The Ruins", effect: "glow", size: 10, color: { red: 255, green: 255, blue: 0 } });
+    assert.ok(!glow.failed && glow.data?.effect === "Outer Glow", JSON.stringify(glow.content));
     const mono = await call("compositor_add_adjustment", { project: card, kind: "Black & White", reds: 100, greens: 0, blues: 0 });
     assert.ok(!mono.failed, JSON.stringify(mono.content));
     const toned = await call("compositor_add_adjustment", { project: card, kind: "Color Balance", midtones: { red: 60, green: 0, blue: -40 } });

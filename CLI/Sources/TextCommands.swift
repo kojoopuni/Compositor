@@ -54,4 +54,33 @@ extension Commands {
         }
         guard style.isValid else { throw CommandError("text needs some characters, a size of 1–4000, tracking −200–1000 and leading 0.5–4") }
     }
+
+    /// compositor-cli add-effect <project> <layer> shadow|glow|stroke [--size PX] [--distance PX] [--angle DEG]
+    ///                           [--opacity 0-100] [--color r,g,b]
+    /// The app's Layer > Layer Effects: the effect becomes its own layer directly beneath the one named.
+    static func addEffect(_ raw: [String]) async throws -> String {
+        let arguments = Arguments(raw)
+        let workspace = try await Workspace.open(try arguments.url(0, "the project"))
+        let layer = try workspace.activate(try arguments.required(1, "the layer's id or name"))
+        let kinds: [String: LayerEffect.Kind] = ["shadow": .dropShadow, "glow": .outerGlow, "stroke": .stroke]
+        guard let kind = kinds[try arguments.required(2, "the effect: shadow, glow or stroke").lowercased()] else {
+            throw CommandError("the effect is shadow, glow or stroke")
+        }
+        var effect = LayerEffect(kind)
+        if let value = try arguments.number("size") { effect.size = value }
+        if let value = try arguments.number("distance") { effect.distance = value }
+        if let value = try arguments.number("angle") { effect.angle = value }
+        if let value = try arguments.number("opacity") { effect.opacity = value }
+        if let text = arguments.string("color") {
+            let parts = text.split(separator: ",").compactMap { Double($0) }
+            guard parts.count == 3, parts.allSatisfy({ (0...255).contains($0) }) else { throw CommandError("--color is r,g,b with each 0–255") }
+            effect.red = parts[0] / 255; effect.green = parts[1] / 255; effect.blue = parts[2] / 255
+        }
+        guard effect.isValid else { throw CommandError("size is 0–500, distance 0–2000, opacity 0–100") }
+        guard let id = await workspace.session.addLayerEffect(effect, to: layer.id) else {
+            throw CommandError(workspace.session.brushError ?? "'\(layer.name)' has nothing to outline; effects need a layer with pixels")
+        }
+        try await workspace.save()
+        return try json(["added": id.uuidString, "effect": kind.rawValue, "beneath": layer.id.uuidString])
+    }
 }
