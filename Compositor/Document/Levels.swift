@@ -70,21 +70,9 @@ nonisolated enum LevelsFilter {
             (0...255).map { Float(job.settings.apply(Double($0) / 255, channel: channel)) }
         }
         guard let data = context.data else { throw ExportError.render }
-        let pixels = data.assumingMemoryBound(to: UInt8.self)
-        let count = job.image.width * job.image.height
-        // The tables are for colors, not colors already multiplied by their alpha: a soft edge's pixels are
-        // unpremultiplied first and premultiplied again after, so an edge is adjusted like the color it is.
-        for i in 0..<count {
-            let a = Int(pixels[i * 4 + 3])
-            guard a > 0, a < 255 else { continue }
-            for k in 0..<3 { pixels[i * 4 + k] = UInt8(min(255, (Int(pixels[i * 4 + k]) * 255 + a / 2) / a)) }
-        }
-        levels_apply(pixels, count, tables)
-        for i in 0..<count {
-            let a = Int(pixels[i * 4 + 3])
-            guard a > 0, a < 255 else { continue }
-            for k in 0..<3 { pixels[i * 4 + k] = UInt8((Int(pixels[i * 4 + k]) * a + 127) / 255) }
-        }
+        // `levels_apply` looks each color up as the color it is: it divides by alpha before the tables and multiplies
+        // back after, so a soft edge needs nothing more here. Doing it again darkens those pixels by their alpha.
+        levels_apply(data.assumingMemoryBound(to: UInt8.self), job.image.width * job.image.height, tables)
         guard let image = context.makeImage() else { throw ExportError.render }
         if let selection = job.selection {
             return try PixelAdjust.blend(image, over: job.image, through: selection, pixelToDocument: job.mapping, isMask: false)
