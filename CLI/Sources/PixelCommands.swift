@@ -7,7 +7,9 @@ import ImageIO
 extension Commands {
     /// compositor-cli filter <project> <layer> <filter name> [settings]
     /// Settings: --radius, --angle, --distance, --amount, --gaussian, --monochromatic, --distortion,
-    /// --horizontal, --vertical (Offset, percent), --exposure, --offset, --gamma.
+    /// --horizontal, --vertical (Offset, percent), --exposure, --offset, --gamma, --keep-edges (blurs),
+    /// --threshold (Unsharp Mask), --strength (Even Lighting 0–100, Height to Normal Map 0.1–50), --y-down,
+    /// --no-wrap (normal map), --band, --lighting (Make Tileable), --cells (Clouds).
     static func filter(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let workspace = try await Workspace.open(try arguments.url(0, "the project"))
@@ -18,10 +20,20 @@ extension Commands {
             throw CommandError("filters: \(usable.map(\.rawValue).joined(separator: ", "))")
         }
         var settings = FilterSettings()
-        if let value = try arguments.number("radius") { settings.radius = value }
+        if let value = try arguments.number("radius") { settings.radius = value; settings.highPassRadius = value; settings.sharpenRadius = value }
         if let value = try arguments.number("angle") { settings.angle = value }
         if let value = try arguments.number("distance") { settings.distance = value }
-        if let value = try arguments.number("amount") { settings.amount = value }
+        if let value = try arguments.number("amount") { settings.amount = value; settings.sharpenAmount = value }
+        if let value = try arguments.number("threshold") { settings.sharpenThreshold = value }
+        if let value = try arguments.number("strength") {
+            if kind == .normalMap { settings.normalStrength = value } else { settings.lightingStrength = value }
+        }
+        if let value = try arguments.number("band") { settings.tileBand = value }
+        if let value = try arguments.number("lighting") { settings.tileLighting = value }
+        if let value = try arguments.number("cells") { settings.cloudCells = value }
+        settings.keepEdges = arguments.flag("keep-edges")
+        settings.normalYDown = arguments.flag("y-down")
+        settings.normalWrap = !arguments.flag("no-wrap")
         if let value = try arguments.number("distortion") { settings.distortion = value }
         if let value = try arguments.number("horizontal") { settings.offsetHorizontal = value }
         if let value = try arguments.number("vertical") { settings.offsetVertical = value }

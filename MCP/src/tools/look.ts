@@ -122,21 +122,24 @@ export function registerLookTools(server: McpServer) {
     {
       title: "Export the finished image",
       description:
-        "Writes the flattened picture at full size. The file extension chooses the format: .png keeps transparency; " +
-        ".jpg is flattened onto the matte color (white by default). The project itself is not changed.",
+        "Writes the flattened picture at full size. The file extension chooses the format: .png, .tiff and .tga keep " +
+        "transparency; .jpg is flattened onto the matte color (white by default). For a cut-out going into a game " +
+        "engine (foliage, decals, sprites), pass bleed (16 is a good value) with .png or .tga: color is spread under " +
+        "the transparent pixels around it so texture filtering leaves no dark halo. The project is not changed.",
       inputSchema: {
         project,
-        output: z.string().min(1).describe("File to write, ending in .png or .jpg, e.g. ~/game/assets/wall_albedo.png. Overwrites an existing file."),
+        output: z.string().min(1).describe("File to write, ending in .png, .jpg, .tiff or .tga, e.g. ~/game/assets/wall_albedo.png. Overwrites an existing file."),
         quality: z.number().min(0).max(100).optional().describe("JPEG quality, 0–100 (default 90)."),
+        bleed: z.number().int().min(0).max(256).optional().describe("PNG and TGA: pixels of color to spread under the transparency around the contents."),
         matte: z.object({ red: z.number().int().min(0).max(255), green: z.number().int().min(0).max(255), blue: z.number().int().min(0).max(255) })
           .optional().describe("JPEG background color behind transparent areas."),
       },
       annotations: { ...EDITS, idempotentHint: true },
     },
-    async ({ project, output, quality, matte }) => {
+    async ({ project, output, quality, matte, bleed }) => {
       try {
         return ok(await run("export", [resolvePath(project), ...options({
-          out: resolvePath(output), quality, matte: matte ? `${matte.red},${matte.green},${matte.blue}` : undefined,
+          out: resolvePath(output), quality, bleed, matte: matte ? `${matte.red},${matte.green},${matte.blue}` : undefined,
         })]));
       } catch (error) { return failed(error); }
     },
