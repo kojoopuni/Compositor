@@ -342,6 +342,57 @@ def text_layers_are_set_edited_and_stay_live(folder):
 
 
 @test
+def actions_replay_saved_steps_on_any_project(folder):
+    project = os.path.join(folder, "wall.comp")
+    run("new", project, "--width", 40, "--height", 40)
+    run("add-layer", project, os.path.join(folder, "split.png"), "--name", "Wall")
+    action = os.path.join(folder, "prepare.json")
+    with open(action, "w") as file:
+        json.dump({"name": "Prepare", "steps": [
+            ["filter", "{project}", "{layer}", "Offset", "--horizontal", "25", "--vertical", "0"],
+            ["add-adjustment", "{project}", "Levels", "--output-black", "255", "--output-white", "0", "--name", "Invert"],
+            ["export", "{project}", "--out", "{folder}/{name}_out.png"]]}, file)
+    assert "needs {layer}" in refused("run-action", action, project)
+    planned = run("run-action", action, project, "--set", "layer=Wall", "--dry-run")
+    assert planned["steps"][2]["would run"][3] == os.path.join(folder, "wall_out.png")
+    result = run("run-action", action, project, "--set", "layer=Wall")
+    assert [step["command"] for step in result["steps"]] == ["filter", "add-adjustment", "export"] and result["action"] == "Prepare"
+    assert os.path.exists(os.path.join(folder, "wall_out.png")) and "Invert" in names(project)
+    with open(action, "w") as file:
+        json.dump({"steps": [["set-layer", "{project}", "Wall", "--opacity", "50"], ["filter", "{project}", "Nope", "Offset"]]}, file)
+    message = refused("run-action", action, project)
+    assert "step 2" in message and "Steps 1–1 were applied" in message
+
+
+@test
+def a_photoshop_document_opens_as_layers(folder):
+    def big(value, size): return value.to_bytes(size, "big", signed=value < 0)
+    def raw(value, count): return big(0, 2) + bytes([value]) * count
+    width, height = 12, 8
+    planes = [(-1, raw(255, 96)), (0, raw(200, 96)), (1, raw(100, 96)), (2, raw(50, 96))]
+    name = b"Paint"
+    extra = big(0, 4) + big(0, 4) + bytes([len(name)]) + name + b"\0" * ((4 - (len(name) + 1) % 4) % 4)
+    record = big(0, 4) + big(0, 4) + big(height, 4) + big(width, 4) + big(len(planes), 2)
+    record += b"".join(big(channel, 2) + big(len(data), 4) for channel, data in planes)
+    record += b"8BIMscrn" + bytes([128, 0, 0, 0]) + big(len(extra), 4) + extra
+    info = big(1, 2) + record + b"".join(data for _, data in planes)
+    info += b"\0" * (len(info) % 2)
+    section = big(len(info), 4) + info + big(0, 4)
+    document = b"8BPS" + big(1, 2) + b"\0" * 6 + big(4, 2) + big(height, 4) + big(width, 4) + big(8, 2) + big(3, 2)
+    document += big(0, 4) + big(0, 4) + big(len(section), 4) + section + big(0, 2) + bytes([255]) * (width * height * 4)
+    source = os.path.join(folder, "paint.psd")
+    with open(source, "wb") as file:
+        file.write(document)
+    project = os.path.join(folder, "paint.comp")
+    result = run("import-psd", source, "--out", project)
+    assert (result["width"], result["height"], result["layers"]) == (12, 8, 1) and result["referenceLayerAdded"] is False
+    layer = layers(project)[0]
+    assert layer["name"] == "Paint" and layer["blendMode"] == "Screen" and abs(layer["opacity"] - 128 / 255) < 0.01
+    assert "already exists" in refused("import-psd", source, "--out", project)
+    assert "not a Photoshop document" in refused("import-psd", os.path.join(folder, "gray.png"), "--out", os.path.join(folder, "x.comp"))
+
+
+@test
 def effects_are_layers_beneath_their_source(folder):
     project = os.path.join(folder, "effects.comp")
     run("new", project, "--width", 200, "--height", 200)
