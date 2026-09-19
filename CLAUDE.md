@@ -34,15 +34,23 @@ One test still fails on unmodified app code and is the regression baseline — a
 
 **Every feature must be reachable from the app's menus, not only from the tools.** Build it into the app first, then have `compositor-cli` and the MCP server call that same code. If something needs new UI before it can be in the app, say so plainly ("no GUI yet") rather than leaving it silent.
 
-In the app (branch `feature/texture-filters`, based on `feature/offset-filter`, based on `fix/stale-tests`; each commit can be offered upstream):
+In the app (each reachable from a menu; the fork's menu items live in `UI/ForkMenus.swift`, one small view per menu, so `CompositorApp.swift` carries one added line per menu):
 
-- Filter menu (generated from `FilterKind`, so a new case appears by itself): Offset, Make Tileable, Even Lighting, High Pass, Unsharp Mask, Height to Normal Map, Clouds. Gaussian and Motion Blur gained "Keep edges solid". Swift in `Document/TextureFilters.swift`, C kernels in `Rendering/TexturePixels.c`.
-- Image > Trim Transparent Pixels (`Document/Trim.swift`).
-- View > Tile Preview, ⌥⌘T (`UI/TilePreview.swift`, `Rendering/TileSheet.swift`).
-- File > Export TIFF…, Export TGA…, Export PNG with Edge Bleed… (`IO/ExportFormats.swift`, `IO/ProjectController+Formats.swift`).
-- The fork's menu items live in `UI/ForkMenus.swift`, one view per menu, so `CompositorApp.swift` carries exactly three added lines.
+- **Filter** (generated from `FilterKind`, so a new case appears by itself): Offset, Make Tileable, Even Lighting, High Pass, Unsharp Mask, Height to Normal Map, Clouds; "Keep edges solid" on the blurs. `Document/TextureFilters.swift`, `Rendering/TexturePixels.c`.
+- **Image**: Black & White, Threshold, Posterize, Vibrance, Color Balance, Photo Filter (also adjustment layers; one settings struct, `Document/ColorAdjustments.swift`, `Rendering/ColorPixels.c`), Trim Transparent Pixels (`Document/Trim.swift`).
+- **Layer**: New Text Layer… / Edit Text… (`Document/TextLayers.swift`, `UI/TextPanel.swift`; the text style rides in the shape slot, `LayerShapeStyle.text`, so saving, copying, resizing and undo needed no changes), Layer Effects (`Document/LayerEffects.swift`, generated layers beneath their source).
+- **Select**: Subject, Color Range (`Document/SmartSelections.swift`).
+- **View**: Tile Preview (`UI/TilePreview.swift`, `Rendering/TileSheet.swift`).
+- **File**: Export TIFF, TGA, PNG with Edge Bleed; Open Photoshop Document… (`IO/ExportFormats.swift`, `IO/PSDImporter.swift`, `IO/ProjectController+Formats.swift`).
+- **App menu**: Allow Assistant Control (`Control/`, a loopback, token-protected server; off by default).
+- Blend modes: ten more at the end of `LayerBlendMode`; those Core Graphics lacks go through `SeparableBlend` via `coreImageFilter`.
+- Pen pressure: `Document/PenPressure.swift` reads it from the current event; a pen stroke uses the brush's software path with per-dab size, a mouse stroke is untouched (GPU path).
 
-No GUI yet (command-line and MCP only): `derive-maps`, `pack-channels`, `heightmap-normal` (16-bit heightmaps are files, because layers are 8-bit), and the one-step `cutout` (in the app it is Filter > Remove Background, then Image > Trim Transparent Pixels).
+Upstream's five busiest files (`EditorCanvas`, `EditorSession`, `ContentView`, `NativeLayerList`, `project.pbxproj`) have no fork edits. Keep it that way.
+
+No GUI yet (command-line and MCP only): `derive-maps`, `pack-channels`, `heightmap-normal`, `cutout`, `run-action`, and everything that needs an image model (generate, edit, generative fill, model-based seam healing, upscale; `MCP/src/providers/`). Not built: pen tool, warp/perspective, smart objects, on-canvas text editing, live layer styles.
+
+Hands-on checks for a person are in `Fork/TESTING.md`. `Fork/sync-upstream.sh` dry-runs a merge of upstream's latest and rebuilds the tool against it.
 
 Build the fork's own app with `Fork/build-app.sh` (`--install` copies it to /Applications as "Compositor Fork", with its own bundle id and upstream's update feed replaced by the fork's empty one).
 
