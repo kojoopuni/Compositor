@@ -43,6 +43,10 @@ CLI/build/Debug/compositor-cli help
 - The app's blurs spread past a layer's edges, so blurring a full-canvas layer fades its border. Texture work needs a clamp or wrap option (Phase 3).
 - Never edit a `.comp` from the CLI while the app has it open with unsaved changes.
 
+## MCP server (`MCP/`, fork-only)
+
+A stdio MCP server (TypeScript) that shells out to `compositor-cli`; see `MCP/README.md` for setup and the tool list. `cd MCP && npm test` builds it and drives the real server as an MCP client. A new CLI command becomes a tool in `MCP/src/tools/`: inputs validated with Zod, a description that says when to use it, and annotations (`READ_ONLY`, `EDITS` or `DESTROYS` from `shared.ts`). `compositor_render_view` returns the canvas as image content, which is how the agent checks its own work.
+
 ## Rules that keep the fork mergeable
 
 Upstream commits daily, mostly to `Rendering/EditorCanvas.swift`, `Document/EditorSession.swift`, `ContentView.swift`, `CompositorApp.swift`, `UI/NativeLayerList.swift` and `project.pbxproj`.

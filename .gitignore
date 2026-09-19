@@ -25,3 +25,7 @@ BUILD_PLAN.md
 
 # Command-line tool build output
 CLI/build/
+
+# MCP server
+MCP/node_modules/
+MCP/dist/

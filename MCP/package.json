@@ -1,0 +1,22 @@
+{
+  "name": "compositor-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server that lets an AI agent build, edit and look at Compositor (.comp) projects through compositor-cli",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": { "compositor-mcp-server": "dist/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "npm run build && node dist/test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
