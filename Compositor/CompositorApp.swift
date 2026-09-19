@@ -83,6 +83,7 @@ struct CompositorApp: App {
                 Group {
                     CommandGroup(after: .appInfo) {
                         Button("Check for Updates…") { applicationDelegate.updater.checkForUpdates(nil) }
+                        AssistantControlItem()
                     }
                     CommandGroup(after: .toolbar) {
                         Button("Fit Canvas") { session.fit() }.keyboardShortcut("0").disabled(session.document == nil)

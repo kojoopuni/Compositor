@@ -8,6 +8,9 @@
     <true/>
     <key>com.apple.security.network.client</key>
     <true/>
+    <!-- Allow Assistant Control listens on the loopback address only; a sandboxed app needs this to listen at all. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
     <!-- Sparkle installs updates through its helper services, which a sandboxed app reaches by name. -->
     <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
     <array>
