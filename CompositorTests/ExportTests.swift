@@ -109,4 +109,25 @@ struct ExportTests {
         let sheet = try TileSheet.image(of: image, count: 3, limit: 600)
         #expect(sheet.width == 60 && sheet.height == 30)
     }
+
+    @Test func edgeBleedColorsTheTransparencyAroundAShapeWithoutChangingAnyAlpha() throws {
+        // A red square in the middle of nothing.
+        let context = try BrushRaster.context(width: 16, height: 16, mask: false)
+        context.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 6, y: 6, width: 4, height: 4))
+        let image = try #require(context.makeImage())
+        let plain = try EdgeBleed.straightPixels(of: image, distance: 0).bytes
+        let bled = try EdgeBleed.straightPixels(of: image, distance: 3).bytes
+        func pixel(_ bytes: [UInt8], _ x: Int, _ y: Int) -> [UInt8] { Array(bytes[(y * 16 + x) * 4..<(y * 16 + x) * 4 + 4]) }
+        #expect(pixel(plain, 4, 8) == [0, 0, 0, 0] && pixel(bled, 4, 8) == [255, 0, 0, 0])   // two pixels out: red, still clear
+        #expect(pixel(bled, 3, 8) == [255, 0, 0, 0] && pixel(bled, 2, 8) == [0, 0, 0, 0])     // three reaches, four does not
+        #expect(pixel(bled, 7, 7) == [255, 0, 0, 255])
+        #expect(stride(from: 3, to: bled.count, by: 4).allSatisfy { bled[$0] == plain[$0] })
+        // The PNG keeps that color: read back without premultiplying, the clear pixel beside the square is red.
+        let png = try EdgeBleed.pngData(image, distance: 3, resolution: 72)
+        let read = try #require(CGImageSourceCreateWithData(png as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+        let raw = try #require(read.dataProvider?.data as Data?)
+        let at = 8 * read.bytesPerRow + 4 * 4
+        #expect(read.alphaInfo == .last && raw[at] == 255 && raw[at + 3] == 0, "\(read.alphaInfo.rawValue) \(Array(raw[at..<at + 4]))")
+    }
 }

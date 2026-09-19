@@ -135,3 +135,31 @@ void texture_clouds(uint8_t *rgba, size_t width, size_t height, size_t stride, i
         }
     }
 }
+
+void texture_edge_bleed(uint8_t *straight, uint8_t *scratch, size_t width, size_t height, size_t stride, int distance) {
+    // scratch: 0 empty, 1 has a color, 2 colored during this pass (so a pass only reads the pass before it).
+    for (size_t y = 0; y < height; ++y)
+        for (size_t x = 0; x < width; ++x) scratch[y * width + x] = straight[y * stride + x * 4 + 3] ? 1 : 0;
+    for (int pass = 0; pass < distance; ++pass) {
+        int changed = 0;
+        for (size_t y = 0; y < height; ++y) {
+            for (size_t x = 0; x < width; ++x) {
+                if (scratch[y * width + x]) continue;
+                int sum[3] = {0, 0, 0}, count = 0;
+                for (int dy = -1; dy <= 1; ++dy) for (int dx = -1; dx <= 1; ++dx) {
+                    long nx = (long)x + dx, ny = (long)y + dy;
+                    if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= (long)width || ny >= (long)height) continue;
+                    if (scratch[(size_t)ny * width + (size_t)nx] != 1) continue;
+                    const uint8_t *n = straight + (size_t)ny * stride + (size_t)nx * 4;
+                    sum[0] += n[0]; sum[1] += n[1]; sum[2] += n[2]; ++count;
+                }
+                if (!count) continue;
+                uint8_t *p = straight + y * stride + x * 4;
+                for (int c = 0; c < 3; ++c) p[c] = (uint8_t)((sum[c] + count / 2) / count);
+                scratch[y * width + x] = 2; changed = 1;
+            }
+        }
+        if (!changed) break;
+        for (size_t i = 0; i < width * height; ++i) if (scratch[i] == 2) scratch[i] = 1;
+    }
+}

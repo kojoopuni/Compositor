@@ -31,4 +31,10 @@ void texture_normal_map(const uint8_t *source, uint8_t *normal, size_t width, si
 // Clouds: soft gray noise that tiles, opaque. `cells` is the number of large features across the image; the same
 // `seed` always gives the same clouds.
 void texture_clouds(uint8_t *rgba, size_t width, size_t height, size_t stride, int cells, uint32_t seed);
+
+// Edge Bleed, on straight (not premultiplied) RGBA: gives fully transparent pixels within `distance` pixels of
+// visible ones the average color of their visible neighbors, leaving every alpha as it is. `scratch` is
+// width × height bytes of working room. An engine filtering the texture then blends edge pixels with a matching
+// color instead of black, which is what causes dark halos around foliage, decals and sprites.
+void texture_edge_bleed(uint8_t *straight, uint8_t *scratch, size_t width, size_t height, size_t stride, int distance);
 #endif
