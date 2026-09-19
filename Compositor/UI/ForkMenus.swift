@@ -48,3 +48,16 @@ struct AssistantControlItem: View {
         Toggle("Allow Assistant Control", isOn: Binding(get: { enabled }, set: { ControlServer.shared.setEnabled($0) }))
     }
 }
+
+/// Layer: text layers.
+struct TextLayerItems: View {
+    let session: EditorSession
+    var body: some View {
+        Button("New Text Layer…") { TextPanelController.shared.newLayer(in: session) }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+            .disabled(!session.canEditLayers || session.document == nil)
+        Button("Edit Text…") { if let id = session.activeLayerID { TextPanelController.shared.edit(id, in: session) } }
+            .disabled(!session.canEditLayers || session.activeText == nil)
+        Divider()
+    }
+}
