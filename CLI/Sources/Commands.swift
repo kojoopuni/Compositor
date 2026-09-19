@@ -71,8 +71,8 @@ enum Commands {
           move-layer       <project> <layer> --top | --bottom | --out | --above LAYER | --into FOLDER
           delete-layer     <project> <layer>
           set-mask         <project> <layer> [<grayscale image>] [--remove] [--enabled true|false]
-          remove-background <project> <layer> [--advanced --refine PX --contrast 0-100 --shift PX]
-          subject-mask     <project> <layer> --out mask.png [--advanced]
+          remove-background <project> <layer> [--edge clean|soft] [--refine PX --contrast 0-100 --shift PX]
+          subject-mask     <project> <layer> --out mask.png [--edge clean|soft]
           filter           <project> <layer> "<filter name>" [--radius --angle --distance --amount --gaussian
                            --monochromatic --distortion --exposure --offset --gamma]
           add-adjustment   <project> "<kind>" [--above LAYER] [--name N] [Levels: --black --gamma --white

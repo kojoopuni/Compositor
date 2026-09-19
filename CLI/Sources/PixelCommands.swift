@@ -31,20 +31,39 @@ extension Commands {
         return try json(["filtered": layer.id.uuidString, "filter": kind.rawValue])
     }
 
-    /// Hides the background behind a layer mask, so nothing is erased. --advanced refines the edge, with
-    /// --refine (pixels), --contrast (0–100) and --shift (pixels, negative contracts).
+    /// Hides the background behind a layer mask, so nothing is erased. --edge clean (the default) gives a crisp
+    /// outline sized to the image; --edge soft is the subject detector's own mask. --refine (pixels), --contrast
+    /// (0–100) and --shift (pixels, negative contracts) override the clean edge's values.
     static func removeBackground(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let workspace = try await Workspace.open(try arguments.url(0, "the project"))
         let layer = try workspace.activate(try arguments.required(1, "the layer's id or name"))
+        let edge = arguments.string("edge")?.lowercased() ?? "clean"
+        guard ["clean", "soft"].contains(edge) else { throw CommandError("--edge is clean or soft") }
         var settings = FilterSettings()
-        if arguments.flag("advanced") { settings.backgroundQuality = .advanced }
+        if edge == "clean" || arguments.flag("advanced") {
+            settings = cleanEdge(for: layer)
+        }
         if let value = try arguments.number("refine") { settings.refineEdges = value }
         if let value = try arguments.number("contrast") { settings.matteContrast = value }
         if let value = try arguments.number("shift") { settings.shiftEdge = value }
         try await apply(.removeBackground, settings, in: workspace)
         try await workspace.save()
-        return try json(["masked": layer.id.uuidString])
+        return try json(["masked": layer.id.uuidString, "edge": edge, "refine": settings.refineEdges,
+                         "contrast": settings.matteContrast, "shift": settings.shiftEdge])
+    }
+
+    /// The detector's mask is made small and stretched over the layer, so its edge is a haze whose width grows with
+    /// the image: about 15 px on a 3,500 px screenshot, invisible on a 500 px picture. These values clear that
+    /// haze and pull the edge in just past it, in proportion to the layer's longer side.
+    static func cleanEdge(for layer: ImageLayer) -> FilterSettings {
+        let longest = Double(max(layer.asset?.image.width ?? 0, layer.asset?.image.height ?? 0))
+        var settings = FilterSettings()
+        settings.backgroundQuality = .advanced
+        settings.refineEdges = min(12, max(3, (longest / 576).rounded()))
+        settings.matteContrast = 65
+        settings.shiftEdge = -min(3, max(0.5, (longest / 3456 * 2).rounded() / 2))
+        return settings
     }
 
     private static func apply(_ kind: FilterKind, _ settings: FilterSettings, in workspace: Workspace) async throws {

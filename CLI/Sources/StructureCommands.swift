@@ -108,8 +108,7 @@ extension Commands {
         let layer = try workspace.layer(try arguments.required(1, "the layer's id or name"))
         guard let output = arguments.url(option: "out") else { throw CommandError("subject-mask needs --out <file.png>") }
         guard let image = layer.asset?.image else { throw CommandError("'\(layer.name)' has no pixels") }
-        var settings = FilterSettings()
-        if arguments.flag("advanced") { settings.backgroundQuality = .advanced }
+        let settings = arguments.string("edge")?.lowercased() == "soft" ? FilterSettings() : cleanEdge(for: layer)
         let mask = try await Task.detached { try SubjectRemoval.subjectMask(image, under: nil, settings: settings) }.value
         try write(mask, to: output, type: .png, properties: [:])
         return try json(["mask": output.path, "width": mask.width, "height": mask.height])
