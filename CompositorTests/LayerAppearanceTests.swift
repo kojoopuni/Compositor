@@ -76,7 +76,11 @@ struct LayerAppearanceTests {
         session.insert(try asset(0.8))
         for (mode, expected) in [(LayerBlendMode.normal, 0.8), (.multiply, 0.32), (.screen, 0.88),
                                  (.overlay, 0.64), (.darken, 0.4), (.lighten, 0.8), (.difference, 0.4),
-                                 (.colorDodge, 1), (.colorBurn, 0.25)] {
+                                 (.colorDodge, 1), (.colorBurn, 0.25),
+                                 // 0.8 over 0.4, by each mode's formula.
+                                 (.softLight, 0.5395), (.hardLight, 0.76), (.exclusion, 0.56), (.linearDodge, 1),
+                                 (.linearBurn, 0.2), (.vividLight, 1), (.linearLight, 1), (.pinLight, 0.6),
+                                 (.divide, 0.5), (.subtract, 0)] {
             session.setLayerBlendMode(mode)
             #expect(try JSONDecoder().decode(LayerBlendMode.self, from: JSONEncoder().encode(mode)) == mode)
             let raster = try await ImageExporter.shared.render(try #require(session.projectSnapshot()))

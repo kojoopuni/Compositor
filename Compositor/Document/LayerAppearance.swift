@@ -6,6 +6,25 @@ nonisolated enum LayerBlendMode: String, Codable, CaseIterable, Sendable {
     case darken = "Darken", lighten = "Lighten", difference = "Difference"
     case colorDodge = "Color Dodge", colorBurn = "Color Burn"
     case hue = "Hue", saturation = "Saturation", color = "Color", luminosity = "Luminosity"
+    // Added after the modes above and kept at the end, so the order projects and shortcuts already rely on is unchanged.
+    case softLight = "Soft Light", hardLight = "Hard Light", exclusion = "Exclusion"
+    case linearDodge = "Linear Dodge (Add)", linearBurn = "Linear Burn", vividLight = "Vivid Light"
+    case linearLight = "Linear Light", pinLight = "Pin Light", divide = "Divide", subtract = "Subtract"
+    /// Core Image's filter for a mode Core Graphics lacks or gets wrong; such a layer is blended by `SeparableBlend`.
+    var coreImageFilter: String? {
+        switch self {
+        case .colorBurn: "CIColorBurnBlendMode"
+        case .colorDodge: "CIColorDodgeBlendMode"
+        case .linearDodge: "CILinearDodgeBlendMode"
+        case .linearBurn: "CILinearBurnBlendMode"
+        case .vividLight: "CIVividLightBlendMode"
+        case .linearLight: "CILinearLightBlendMode"
+        case .pinLight: "CIPinLightBlendMode"
+        case .divide: "CIDivideBlendMode"
+        case .subtract: "CISubtractBlendMode"
+        default: nil
+        }
+    }
     var cgMode: CGBlendMode {
         switch self {
         case .normal: .normal
@@ -21,6 +40,11 @@ nonisolated enum LayerBlendMode: String, Codable, CaseIterable, Sendable {
         case .saturation: .saturation
         case .color: .color
         case .luminosity: .luminosity
+        case .softLight: .softLight
+        case .hardLight: .hardLight
+        case .exclusion: .exclusion
+        // Drawn by SeparableBlend wherever there is a surface to read back; anywhere else they fall back to Normal.
+        case .linearDodge, .linearBurn, .vividLight, .linearLight, .pinLight, .divide, .subtract: .normal
         }
     }
 }

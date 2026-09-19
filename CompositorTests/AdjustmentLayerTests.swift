@@ -163,6 +163,14 @@ import Testing
             let live = try #require(session.activeLayer?.adjustment)
             #expect(live.exposure == settings.exposure && live.gradientMap == settings.gradientMap && live.grain == settings.grain)
             await session.commitFilter()
+        case .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
+            #expect(session.filterEdit?.kind == kind.filterKind)
+            var settings = try #require(session.filterEdit).settings
+            settings.color.grayRed = 80; settings.color.thresholdLevel = 40; settings.color.posterizeLevels = 3
+            settings.color.vibrance = 50; settings.color.midtones.red = 60; settings.color.filterDensity = 70
+            session.updateFilter(settings, preview: true)
+            #expect(session.activeLayer?.adjustment?.color == settings.color)
+            await session.commitFilter()
         case .hsv:
             var settings = try #require(session.hueSaturation).settings
             settings.range = .reds
@@ -186,10 +194,10 @@ import Testing
             #expect(session.levels?.settings == saved.levels)
             session.updateLevels(LevelsSettings(), preview: true)
             session.cancelLevels()
-        case .curves, .exposure, .gradientMap, .grain:
+        case .curves, .exposure, .gradientMap, .grain, .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
             let reopened = try #require(session.filterEdit).settings
             #expect(reopened.curves == saved.curves && reopened.exposure == saved.exposure
-                    && reopened.gradientMap == saved.gradientMap && reopened.grain == saved.grain)
+                    && reopened.gradientMap == saved.gradientMap && reopened.grain == saved.grain && reopened.color == saved.color)
             session.updateFilter(FilterSettings(), preview: true)
             session.cancelFilter()
         case .hsv:

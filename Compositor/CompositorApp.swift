@@ -218,6 +218,7 @@ struct CompositorApp: App {
                     }
                 }
                 CommandMenu("Layer") {
+                    TextLayerItems(session: session)
                     Menu("New Adjustment Layer") {
                         ForEach(AdjustmentKind.allCases, id: \.self) { kind in
                             Button(kind.rawValue + "…") { session.addAdjustment(kind) }

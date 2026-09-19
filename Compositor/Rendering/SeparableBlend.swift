@@ -1,13 +1,14 @@
 import CoreGraphics
 import CoreImage
 
-/// Color Burn and Color Dodge, blended the way the PDF spec (and Photoshop) define them.
+/// Color Burn and Color Dodge, blended the way the PDF spec (and Photoshop) define them, and the modes Core Graphics
+/// does not have at all: Linear Dodge, Linear Burn, Vivid Light, Linear Light, Pin Light, Divide and Subtract.
 ///
 /// Core Graphics gets these two wrong: its `.colorBurn` and `.colorDodge` ignore how transparent the source is, so
 /// a soft brush comes out with a hard edge. Every other mode it has is right. Core Image's versions are correct, so
 /// a layer in one of these modes is drawn into a copy of the canvas, blended there, and the result put back.
 nonisolated enum SeparableBlend {
-    static func isCoreGraphicsWrong(_ mode: LayerBlendMode) -> Bool { mode == .colorBurn || mode == .colorDodge }
+    static func isCoreGraphicsWrong(_ mode: LayerBlendMode) -> Bool { mode.coreImageFilter != nil }
     /// Unmanaged, like `PixelAdjust`: left to itself Core Image blends in linear light, where these modes give
     /// different (darker) results than the sRGB values every other mode, and Photoshop, blend.
     private static let ciContext = CIContext(options: [.cacheIntermediates: false, .workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
@@ -18,7 +19,7 @@ nonisolated enum SeparableBlend {
     /// false and the caller draws with Core Graphics as before.
     static func draw(_ mode: LayerBlendMode, in context: CGContext, body: (CGContext) -> Void) -> Bool {
         guard isCoreGraphicsWrong(mode), context.data != nil, context.width > 0, context.height > 0,
-              let filter = CIFilter(name: mode == .colorBurn ? "CIColorBurnBlendMode" : "CIColorDodgeBlendMode"),
+              let name = mode.coreImageFilter, let filter = CIFilter(name: name),
               let backdrop = context.makeImage(),
               let surface = CGContext(data: nil, width: context.width, height: context.height, bitsPerComponent: 8,
                                       bytesPerRow: context.width * 4, space: space,

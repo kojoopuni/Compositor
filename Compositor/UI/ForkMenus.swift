@@ -21,6 +21,11 @@ struct ExportFormatItems: View {
 struct TrimItem: View {
     let session: EditorSession
     var body: some View {
+        ForEach(ColorAdjustments.kinds, id: \.self) { kind in
+            Button("\(kind.rawValue)…") { session.beginFilter(kind) }
+                .disabled(!session.canAdjustColors || session.hueSaturation != nil)
+        }
+        Divider()
         Button("Trim Transparent Pixels") { Task { await session.trimTransparentPixels() } }
             .disabled(!session.canTrim)
     }
@@ -41,5 +46,18 @@ struct AssistantControlItem: View {
     @AppStorage(ControlServer.enabledKey) private var enabled = false
     var body: some View {
         Toggle("Allow Assistant Control", isOn: Binding(get: { enabled }, set: { ControlServer.shared.setEnabled($0) }))
+    }
+}
+
+/// Layer: text layers.
+struct TextLayerItems: View {
+    let session: EditorSession
+    var body: some View {
+        Button("New Text Layer…") { TextPanelController.shared.newLayer(in: session) }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+            .disabled(!session.canEditLayers || session.document == nil)
+        Button("Edit Text…") { if let id = session.activeLayerID { TextPanelController.shared.edit(id, in: session) } }
+            .disabled(!session.canEditLayers || session.activeText == nil)
+        Divider()
     }
 }
