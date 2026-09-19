@@ -12,6 +12,8 @@ struct ExportFormatItems: View {
             Button("Export \(format.rawValue)…") { Task { await projects.export(as: format) } }
                 .disabled(session.document == nil || !projects.canStart)
         }
+        Button("Export PNG with Edge Bleed…") { Task { await projects.exportBleedPNG() } }
+            .disabled(session.document == nil || !projects.canStart)
     }
 }
 
