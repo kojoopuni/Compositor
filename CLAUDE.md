@@ -19,13 +19,32 @@ TEST_RUNNER_BRUSH_BENCHMARK=1 xcodebuild … -parallel-testing-enabled NO \
 
 ### Baseline (upstream `a19db90`, 2026-09-18)
 
-288 tests. Upstream's suite did not compile; branch `fix/stale-tests` brings seven stale tests back in line with the app. Three tests still fail on unmodified app code, and are the regression baseline — anything else failing is ours:
+Upstream's suite did not compile at that commit; branch `fix/stale-tests` brings seven stale tests back in line with the app. Two real rendering bugs the tests then caught are fixed on `fix/rendering-bugs` (merged here, not yet sent upstream):
 
-- `LayerAppearanceTests.blendModesAndOpacityMatchKnownPixels` — Color Dodge of 0.8 over 0.4 exports as 0.616, not 1.0. Looks like a real rendering bug since Color Dodge/Burn moved to `SeparableBlend`.
-- `LevelsTests.inputClippingGammaOutputInversionAndAlpha` — inverted output on a half-transparent pixel gives `[0, 32, 64]`, not `[64, 96, 128]`. Looks like a real regression from "Fix dark soft edges in Hue/Saturation and Levels".
-- `CursorTests.optionOverALayerRowOffersDuplicatingExceptOverThumbnails` — compares `NSCursor.current`, which depends on the test window being frontmost; may be environmental.
+- Color Dodge and Color Burn blended in linear light, because `SeparableBlend`'s Core Image context was left color-managed; every other mode blends sRGB values. 0.8 dodged over 0.4 exported as 0.616 instead of white.
+- Levels applied its alpha handling twice (once in `levels_apply`, again in Swift since upstream's "Fix dark soft edges" commit), darkening soft edges.
+
+One test still fails on unmodified app code and is the regression baseline — anything else failing is ours:
+
+- `CursorTests.optionOverALayerRowOffersDuplicatingExceptOverThumbnails` — compares `NSCursor.current`, which depends on the test window being frontmost; likely environmental.
 
 `SelectionEditTests.invertIsFast…` has a 1.5 s time limit and fails only under parallel load; run suites with `-parallel-testing-enabled NO` when timing matters.
+
+## The fork's features, and the parity rule
+
+**Every feature must be reachable from the app's menus, not only from the tools.** Build it into the app first, then have `compositor-cli` and the MCP server call that same code. If something needs new UI before it can be in the app, say so plainly ("no GUI yet") rather than leaving it silent.
+
+In the app (branch `feature/texture-filters`, based on `feature/offset-filter`, based on `fix/stale-tests`; each commit can be offered upstream):
+
+- Filter menu (generated from `FilterKind`, so a new case appears by itself): Offset, Make Tileable, Even Lighting, High Pass, Unsharp Mask, Height to Normal Map, Clouds. Gaussian and Motion Blur gained "Keep edges solid". Swift in `Document/TextureFilters.swift`, C kernels in `Rendering/TexturePixels.c`.
+- Image > Trim Transparent Pixels (`Document/Trim.swift`).
+- View > Tile Preview, ⌥⌘T (`UI/TilePreview.swift`, `Rendering/TileSheet.swift`).
+- File > Export TIFF…, Export TGA…, Export PNG with Edge Bleed… (`IO/ExportFormats.swift`, `IO/ProjectController+Formats.swift`).
+- The fork's menu items live in `UI/ForkMenus.swift`, one view per menu, so `CompositorApp.swift` carries exactly three added lines.
+
+No GUI yet (command-line and MCP only): `derive-maps`, `pack-channels`, `heightmap-normal` (16-bit heightmaps are files, because layers are 8-bit), and the one-step `cutout` (in the app it is Filter > Remove Background, then Image > Trim Transparent Pixels).
+
+Build the fork's own app with `Fork/build-app.sh` (`--install` copies it to /Applications as "Compositor Fork", with its own bundle id and upstream's update feed replaced by the fork's empty one).
 
 ## Command-line tool (`CLI/`, fork-only)
 
@@ -40,7 +59,7 @@ CLI/build/Debug/compositor-cli help
 - If upstream adds a file outside `UI/` that needs a window, the CLI build fails on it: add it to `WINDOWED` in `CLI/make_project.py`.
 - Commands open the project into a bare `EditorSession` and call the same methods the app does (`Workspace.swift`), so edits follow the app's rules. Resizing uses the `ImageResizer`/`CanvasResizer` actors on the saved snapshot.
 - Automatic filters (Remove Background) commit only after their preview settles; `Commands.apply` waits for that.
-- The app's blurs spread past a layer's edges, so blurring a full-canvas layer fades its border. Texture work needs a clamp or wrap option (Phase 3).
+- The app's blurs spread past a layer's edges by default; pass `--keep-edges` for a texture or background that must keep covering the canvas.
 - Never edit a `.comp` from the CLI while the app has it open with unsaved changes.
 
 ## MCP server (`MCP/`, fork-only)
