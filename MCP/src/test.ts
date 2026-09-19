@@ -51,7 +51,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 18);
+    assert.equal(tools.length, 19);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -108,6 +108,10 @@ try {
     assert.deepEqual(cropped.data, { x: 38, y: 8, width: 36, height: 36 });
     const needs = await call("compositor_crop", { project: scene });
     assert.ok(needs.failed && /box or to_content/.test(needs.content[0].text ?? ""));
+    await call("compositor_apply_filter", { project: scene, layer: "Red", filter: "Offset", horizontal: 50, vertical: 50 });
+    const tiles = await call("compositor_tile_preview", { project: scene, repeat: 2 });
+    assert.equal(tiles.content.find((part) => part.type === "image")?.mimeType, "image/png");
+    assert.match(tiles.content.find((part) => part.type === "text")?.text ?? "", /2 × 2 tiles/);
     const eagle = "/Library/User Pictures/Animals/Eagle.heic";
     const cut = await call("compositor_cutout", { image: eagle, output: path.join(folder, "eagle.png"), project: path.join(folder, "eagle.comp") });
     assert.ok(!cut.failed && cut.data?.width <= 512 && cut.data?.project, JSON.stringify(cut.data ?? cut.content));

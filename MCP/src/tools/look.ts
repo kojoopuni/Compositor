@@ -66,6 +66,43 @@ export function registerLookTools(server: McpServer) {
   );
 
   server.registerTool(
+    "compositor_tile_preview",
+    {
+      title: "Look at the canvas repeated as tiles",
+      description:
+        "Renders the finished picture repeated in a grid and returns it as an image, which is how a tiling texture " +
+        "is judged. Look for seams where tiles meet (edges that do not match) and for features that repeat too " +
+        "obviously (one bright stone showing up nine times). Use it after making a texture tileable and before " +
+        "exporting it. The project is not changed.",
+      inputSchema: {
+        project,
+        repeat: z.number().int().min(2).max(8).default(3).describe("Tiles each way."),
+        max_size: z.number().int().min(64).max(4096).default(1536).describe("Longest side of the whole sheet in pixels."),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ project, repeat, max_size }) => {
+      const folder = await mkdtemp(path.join(tmpdir(), "compositor-tiles-"));
+      try {
+        const file = path.join(folder, "tiles.png");
+        const result = await run("tile-preview", [resolvePath(project), ...options({ out: file, repeat, "max-size": max_size })]);
+        const data = (await readFile(file)).toString("base64");
+        const tile = result.tile as { width: number; height: number };
+        return {
+          content: [
+            { type: "image", data, mimeType: "image/png" },
+            { type: "text", text: `${repeat} × ${repeat} tiles, each shown at ${tile.width} × ${tile.height} px.` },
+          ],
+        };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        await rm(folder, { recursive: true, force: true });
+      }
+    },
+  );
+
+  server.registerTool(
     "compositor_sample_color",
     {
       title: "Read a color from the canvas",

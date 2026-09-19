@@ -23,6 +23,7 @@ The server uses `CLI/build/Release/compositor-cli`, falling back to the Debug bu
 |---|---|
 | `compositor_get_info` | Canvas size and every layer, top first |
 | `compositor_render_view` | Returns the finished picture as an image — the whole canvas or a region |
+| `compositor_tile_preview` | Returns the canvas repeated as tiles, for judging seams and repetition |
 | `compositor_sample_color` | The color at one pixel, as the eyedropper reads it |
 | `compositor_new_project` | A new transparent canvas |
 | `compositor_add_image_layer` | An image file as a new layer, placed, scaled, blended |

@@ -31,6 +31,7 @@ enum Commands {
         case "add-adjustment": return try await addAdjustment(rest)
         case "set-mask": return try await setMask(rest)
         case "render": return try await render(rest)
+        case "tile-preview": return try await tilePreview(rest)
         case "sample": return try await sample(rest)
         case "export": return try await export(rest)
         default: throw CommandError("unknown command '\(name)'; run compositor-cli help")
@@ -76,7 +77,7 @@ enum Commands {
           remove-background <project> <layer> [--edge clean|soft] [--refine PX --contrast 0-100 --shift PX]
           subject-mask     <project> <layer> --out mask.png [--edge clean|soft]
           filter           <project> <layer> "<filter name>" [--radius --angle --distance --amount --gaussian
-                           --monochromatic --distortion --exposure --offset --gamma]
+                           --monochromatic --distortion --horizontal --vertical --exposure --offset --gamma]
           add-adjustment   <project> "<kind>" [--above LAYER] [--name N] [Levels: --black --gamma --white
                            --output-black --output-white | Hue/Saturation: --hue --saturation --lightness
                            --colorize | Exposure: --exposure --offset --gamma]
@@ -85,6 +86,7 @@ enum Commands {
           resize           <project> --width W | --height H | --scale PERCENT [--resolution PPI] [--sampling S]
           canvas-size      <project> [--width W] [--height H] [--anchor center|top-left|...]
           render           <project> --out view.png [--region x,y,w,h] [--max-size PX]
+          tile-preview     <project> --out sheet.png [--repeat 3] [--max-size PX]
           sample           <project> --at x,y
           export           <project> --out file.png|.jpg [--quality 0-100] [--matte r,g,b]
 
