@@ -17,6 +17,8 @@
 				Assets.xcassets,
 				CompositorApp.swift,
 				ContentView.swift,
+				Control/ControlCommands.swift,
+				Control/ControlServer.swift,
 				Document/ProjectWorkspace.swift,
 				IO/CompositorApplicationDelegate.swift,
 				IO/ImageFileDrop.swift,
