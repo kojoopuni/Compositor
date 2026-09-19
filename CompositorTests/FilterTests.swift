@@ -26,8 +26,16 @@ struct FilterTests {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
         pixels.draw(result, in: CGRect(x: 0, y: 0, width: result.width, height: result.height))
         let bytes = try #require(pixels.data).assumingMemoryBound(to: UInt8.self)
-        func alpha(_ x: Int) -> Int { Int(bytes[(10 * result.width + x) * 4 + 3]) }
-        #expect(alpha(0) == 255)                  // the layer's own border doesn't fade
+        // The blur spreads past the layer's edges, so the layer grew; read pixels by where they sit in the document.
+        let origin = try #require(session.activeLayer?.transform.origin)
+        #expect(origin.x < 0 && result.width > 20)
+        func alpha(_ x: Int) -> Int {
+            let column = x - Int(origin.x), row = 10 - Int(origin.y)
+            guard (0..<result.width).contains(column), (0..<result.height).contains(row) else { return 0 }
+            return Int(bytes[(row * result.width + column) * 4 + 3])
+        }
+        #expect(alpha(10) == 255)                  // well inside stays solid
+        #expect(alpha(0) > 20 && alpha(0) < 235)   // the layer's own border spreads outwards
         #expect(alpha(20) > 20 && alpha(20) < 235) // the hard edge is now soft
         #expect(alpha(38) == 0)
     }

@@ -42,18 +42,19 @@ struct TransformPressTests {
 
     @Test func draggingOutsideTheLayerMovesIt() throws {
         let (session, view, window) = try makeCanvas()
-        try drag(session, view, in: window, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 40, y: 30))
+        // Far enough on both axes that the layer clears the pull back to the canvas center.
+        try drag(session, view, in: window, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 40, y: 50))
         #expect(session.transformEdit == nil)
         let origin = try #require(session.activeLayer?.transform.origin)
-        #expect(near(origin, CGPoint(x: 170, y: 110)), "layer origin \(origin)")
+        #expect(near(origin, CGPoint(x: 170, y: 130)), "layer origin \(origin)")
     }
 
     @Test func optionDraggingOutsideTheLayerDuplicatesIt() throws {
         let (session, view, window) = try makeCanvas()
-        try drag(session, view, in: window, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 40, y: 30), flags: .option)
+        try drag(session, view, in: window, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 40, y: 50), flags: .option)
         let origins = try #require(session.document?.layers.map(\.transform.origin))
         #expect(origins.count == 2, "\(origins)")
-        #expect(origins.contains { near($0, CGPoint(x: 150, y: 100)) } && origins.contains { near($0, CGPoint(x: 170, y: 110)) },
+        #expect(origins.contains { near($0, CGPoint(x: 150, y: 100)) } && origins.contains { near($0, CGPoint(x: 170, y: 130)) },
                 "the original stays and the copy moves: \(origins)")
     }
 }
