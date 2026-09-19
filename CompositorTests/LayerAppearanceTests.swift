@@ -81,7 +81,7 @@ struct LayerAppearanceTests {
             #expect(try JSONDecoder().decode(LayerBlendMode.self, from: JSONEncoder().encode(mode)) == mode)
             let raster = try await ImageExporter.shared.render(try #require(session.projectSnapshot()))
             let (value, alpha) = try pixel(raster.image)
-            #expect(abs(value - expected) < 0.02)
+            #expect(abs(value - expected) < 0.02, "\(mode.rawValue) rendered \(value), expected \(expected)")
             #expect(alpha == 1)
         }
         session.setLayerBlendMode(.normal)

@@ -141,7 +141,9 @@ struct SelectionTests {
         #expect(session.displayedSelectionMode == .subtract)
         session.updateHeldSelectionKeys(shift: false, option: false)
         #expect(session.displayedSelectionMode == .replace)
-        #expect(CanvasView.lassoCursors.count == 3 && CanvasView.lassoCursors[.replace] == .crosshair)
+        // Every selection tool has its own crosshair for each mode.
+        #expect(CanvasView.selectionCursors.count == CanvasView.SelectionIcon.allCases.count)
+        #expect(CanvasView.selectionCursors.values.allSatisfy { $0.count == SelectionMode.allCases.count })
     }
 
     @Test func draggingMovesTheOutlineInWholePixelsAsOneUndo() throws {
@@ -378,23 +380,19 @@ struct SelectionTests {
     }
 
     /// M chooses the Marquee; pressed again it switches Rectangle and Ellipse, and the shape sticks.
-    @Test func mKeyChoosesTheMarqueeThenSwitchesItsShape() throws {
+    @Test func mKeyChoosesTheMarqueeInItsLastShape() throws {
         let session = makeSession()
         let view = CanvasView(session: session)
-        func pressM(repeat isARepeat: Bool = false) throws {
+        func pressM() throws {
             view.keyDown(with: try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
-                windowNumber: 0, context: nil, characters: "m", charactersIgnoringModifiers: "m", isARepeat: isARepeat, keyCode: 46)))
+                windowNumber: 0, context: nil, characters: "m", charactersIgnoringModifiers: "m", isARepeat: false, keyCode: 46)))
         }
         #expect(session.tool == .lasso && session.marqueeKind == .rectangle)
         try pressM()
         #expect(session.tool == .marquee && session.marqueeKind == .rectangle)
         try pressM()
-        #expect(session.marqueeKind == .ellipse)
-        try pressM(repeat: true)
-        #expect(session.marqueeKind == .ellipse, "holding M must not keep switching")
-        try pressM()
-        #expect(session.marqueeKind == .rectangle)
-        try pressM()
+        #expect(session.marqueeKind == .rectangle, "the shape is switched only in the tool bar")
+        session.toggleMarqueeKind()
         session.selectTool(.brush)
         try pressM()
         #expect(session.tool == .marquee && session.marqueeKind == .ellipse, "the shape stays as last set")
@@ -442,24 +440,20 @@ struct SelectionTests {
     }
 
     /// L chooses the Lasso; pressed again it switches Freehand and Polygonal, and the mode sticks.
-    @Test func lKeyChoosesTheLassoThenSwitchesItsMode() throws {
+    @Test func lKeyChoosesTheLassoInItsLastMode() throws {
         let session = makeSession()
         session.selectTool(.marquee)
         let view = CanvasView(session: session)
-        func pressL(repeat isARepeat: Bool = false) throws {
+        func pressL() throws {
             view.keyDown(with: try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
-                windowNumber: 0, context: nil, characters: "l", charactersIgnoringModifiers: "l", isARepeat: isARepeat, keyCode: 37)))
+                windowNumber: 0, context: nil, characters: "l", charactersIgnoringModifiers: "l", isARepeat: false, keyCode: 37)))
         }
         #expect(session.lassoKind == .freehand)
         try pressL()
         #expect(session.tool == .lasso && session.lassoKind == .freehand)
         try pressL()
-        #expect(session.lassoKind == .polygonal)
-        try pressL(repeat: true)
-        #expect(session.lassoKind == .polygonal, "holding L must not keep switching")
-        try pressL()
-        #expect(session.lassoKind == .freehand)
-        try pressL()
+        #expect(session.lassoKind == .freehand, "the mode is switched only in the tool bar")
+        session.toggleLassoKind()
         session.selectTool(.brush)
         try pressL()
         #expect(session.tool == .lasso && session.lassoKind == .polygonal, "the mode stays as last set")
