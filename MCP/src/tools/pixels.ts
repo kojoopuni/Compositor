@@ -102,8 +102,10 @@ export function registerPixelTools(server: McpServer) {
         "Rewrites one layer's pixels; there is no undo from here, so for color changes prefer compositor_add_adjustment. " +
         "Settings by filter — Gaussian Blur: radius (0.1–250 px). Motion Blur: angle (−90–90°), distance (px). " +
         "Add Noise: amount (0.1–400 %), gaussian, monochromatic. Lens Correction: distortion (−100–100). " +
-        "Exposure: exposure, offset, gamma. Note: blurs spread past the layer's edges, so a blurred full-canvas layer " +
-        "fades toward the canvas border.",
+        "Exposure: exposure, offset, gamma. Blurs spread past the layer's edges: the layer grows, and its original " +
+        "border becomes about half transparent, fading over roughly three times the radius. So a blurred layer that " +
+        "filled the canvas no longer covers its borders; scale it up first so the fade falls outside the canvas, and " +
+        "confirm with compositor_sample_color on a border pixel (alpha 255) rather than assuming.",
       inputSchema: {
         project, layer,
         filter: z.enum(FILTERS),
