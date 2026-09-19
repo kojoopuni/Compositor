@@ -20,6 +20,7 @@ WINDOWED = [
     "CompositorApp.swift",
     "Assets.xcassets",
     "IO/ProjectController.swift",
+    "IO/ProjectController+Formats.swift",
     "IO/CompositorApplicationDelegate.swift",
     "IO/ImageFileDrop.swift",
     "Document/ProjectWorkspace.swift",

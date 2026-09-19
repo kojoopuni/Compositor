@@ -3,7 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { options, resolvePath, run } from "../cli.js";
 import { DESTROYS, EDITS, failed, layer, ok, project } from "../shared.js";
 
-const FILTERS = ["Gaussian Blur", "Motion Blur", "Add Noise", "Lens Correction", "Offset", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
+const FILTERS = ["Gaussian Blur", "Motion Blur", "Add Noise", "Lens Correction", "Offset", "Make Tileable",
+  "Even Lighting", "High Pass", "Unsharp Mask", "Height to Normal Map", "Clouds", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
 const ADJUSTMENTS = ["Hue/Saturation", "Levels", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
 
 /** Tools that mask, adjust or filter. Masks and adjustment layers are non-destructive; filters rewrite pixels. */
@@ -98,7 +99,7 @@ export function registerPixelTools(server: McpServer) {
     {
       title: "Make a texture layer tile without seams",
       description:
-        "Rewrites one layer so it repeats cleanly: evens out broad lighting differences (a texture brighter on one " +
+        "The app's Filter > Make Tileable. Rewrites one layer so it repeats cleanly: evens out broad lighting differences (a texture brighter on one " +
         "side can never tile), slides the pixels half way round so the seams meet in the middle, rebuilds a " +
         "cross-shaped band over them from the surrounding texture, and slides them back. Works best on fairly " +
         "uniform surfaces (stone, soil, bark, fabric, plaster); distinct objects crossing the seam band will be " +
@@ -108,13 +109,13 @@ export function registerPixelTools(server: McpServer) {
       inputSchema: {
         project, layer,
         band: z.number().min(2).max(40).optional().describe("Width of the rebuilt band, as a percentage of the layer's shorter side (default 12)."),
-        keep_lighting: z.boolean().optional().describe("Skip the lighting step, for a texture whose broad light and dark areas are part of its look."),
+        lighting: z.number().min(0).max(100).optional().describe("How much broad light and shade is flattened first (default 100). Lower it, or use 0, for a texture whose large light and dark areas are part of its look."),
       },
       annotations: DESTROYS,
     },
-    async ({ project, layer, band, keep_lighting }) => {
+    async ({ project, layer, band, lighting }) => {
       try {
-        return ok(await run("make-tileable", [resolvePath(project), layer, ...options({ band, "keep-lighting": keep_lighting }, ["keep-lighting"])]));
+        return ok(await run("make-tileable", [resolvePath(project), layer, ...options({ band, lighting })]));
       } catch (error) { return failed(error); }
     },
   );
@@ -161,22 +162,33 @@ export function registerPixelTools(server: McpServer) {
     {
       title: "Apply a filter to a layer's pixels",
       description:
-        "Rewrites one layer's pixels; there is no undo from here, so for color changes prefer compositor_add_adjustment. " +
+        "Rewrites one layer's pixels with one of the app's filters (the same ones as its Filter menu); there is no " +
+        "undo from here, so for color changes prefer compositor_add_adjustment. " +
+        "High Pass: radius. Unsharp Mask: amount (1–500 %), radius, threshold. Even Lighting: strength (0–100). " +
+        "Height to Normal Map: strength (0.1–50), y_down (true for Unreal/DirectX; leave false for Godot, Unity, " +
+        "Blender), no_wrap (true unless the texture tiles). Clouds: cells (1–64), tiling gray noise that replaces " +
+        "the layer's pixels. Make Tileable: use compositor_make_tileable. " +
         "Settings by filter — Gaussian Blur: radius (0.1–250 px). Motion Blur: angle (−90–90°), distance (px). " +
         "Add Noise: amount (0.1–400 %), gaussian, monochromatic. Lens Correction: distortion (−100–100). " +
         "Offset: horizontal, vertical (percent of the layer's size; pixels leaving one edge return at the other, " +
         "copied exactly, so the opposite values undo it). Offset 50/50 brings a texture's seams to the middle for " +
-        "retouching; check tiling with compositor_tile_preview. Exposure: exposure, offset, gamma. Blurs spread past the layer's edges: the layer grows, and its original " +
-        "border becomes about half transparent, fading over roughly three times the radius. So a blurred layer that " +
-        "filled the canvas no longer covers its borders; scale it up first so the fade falls outside the canvas, and " +
-        "confirm with compositor_sample_color on a border pixel (alpha 255) rather than assuming.",
+        "retouching; check tiling with compositor_tile_preview. Exposure: exposure, offset, gamma. " +
+        "Blurs spread past the layer's edges by default: the layer grows and its original border becomes about half " +
+        "transparent. For a texture or a background that must keep covering the canvas, pass keep_edges true: the " +
+        "inside is blurred and the outline stays solid.",
       inputSchema: {
         project, layer,
         filter: z.enum(FILTERS),
         radius: z.number().min(0.1).max(250).optional(), angle: z.number().min(-90).max(90).optional(),
-        distance: z.number().min(1).max(2000).optional(), amount: z.number().min(0.1).max(400).optional(),
+        distance: z.number().min(1).max(2000).optional(), amount: z.number().min(0.1).max(500).optional().describe("Add Noise 0.1–400 %, Unsharp Mask 1–500 %."),
         gaussian: z.boolean().optional(), monochromatic: z.boolean().optional(),
         distortion: z.number().min(-100).max(100).optional(),
+        keep_edges: z.boolean().optional().describe("Blurs: keep the layer's outline solid instead of fading it."),
+        threshold: z.number().min(0).max(255).optional().describe("Unsharp Mask: smaller differences are left alone."),
+        strength: z.number().min(0).max(100).optional().describe("Even Lighting 0–100, or Height to Normal Map 0.1–50."),
+        y_down: z.boolean().optional().describe("Height to Normal Map: green points down (Unreal, DirectX)."),
+        no_wrap: z.boolean().optional().describe("Height to Normal Map: do not read slopes across the edges."),
+        cells: z.number().min(1).max(64).optional().describe("Clouds: large features across the layer."),
         horizontal: z.number().min(-100).max(100).optional().describe("Offset: slide right, percent of the layer's width (default 50)."),
         vertical: z.number().min(-100).max(100).optional().describe("Offset: slide down, percent of the layer's height (default 50)."),
         exposure: z.number().min(-20).max(20).optional(), offset: z.number().min(-0.5).max(0.5).optional(),
@@ -189,9 +201,10 @@ export function registerPixelTools(server: McpServer) {
         return ok(await run("filter", [resolvePath(input.project), input.layer, input.filter, ...options({
           radius: input.radius, angle: input.angle, distance: input.distance, amount: input.amount,
           gaussian: input.gaussian, monochromatic: input.monochromatic, distortion: input.distortion,
-          horizontal: input.horizontal, vertical: input.vertical,
+          horizontal: input.horizontal, vertical: input.vertical, "keep-edges": input.keep_edges,
+          threshold: input.threshold, strength: input.strength, "y-down": input.y_down, "no-wrap": input.no_wrap, cells: input.cells,
           exposure: input.exposure, offset: input.offset, gamma: input.gamma,
-        }, ["gaussian", "monochromatic"])]));
+        }, ["gaussian", "monochromatic", "keep-edges", "y-down", "no-wrap"])]));
       } catch (error) { return failed(error); }
     },
   );

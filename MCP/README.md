@@ -38,9 +38,12 @@ The server uses `CLI/build/Release/compositor-cli`, falling back to the Debug bu
 | `compositor_remove_background` | Hide a layer's background behind a mask (on-device) |
 | `compositor_subject_mask` | Save a layer's subject as a mask image |
 | `compositor_add_adjustment` | Levels, Hue/Saturation, Exposure and the other adjustment layers |
-| `compositor_apply_filter` | Blur, noise, lens correction and the app's other filters |
+| `compositor_apply_filter` | Any of the app's filters: blurs (optionally keeping edges solid), noise, Offset, Even Lighting, High Pass, Unsharp Mask, Height to Normal Map, Clouds… |
+| `compositor_derive_maps` | Writes albedo, height, normal, roughness and AO maps from a finished texture |
+| `compositor_pack_channels` | Packs grayscale maps into one texture (glTF/Godot ORM, Unity mask map, or any layout) |
+| `compositor_heightmap_normal` | A normal map from a 16-bit heightmap file, at full precision |
 | `compositor_resize` | Image Size (resample) or Canvas Size (no resampling) |
-| `compositor_export` | PNG or JPEG at full size |
+| `compositor_export` | PNG, JPEG, TIFF or TGA at full size, with optional edge bleed for engine cut-outs |
 
 ## Safety
 

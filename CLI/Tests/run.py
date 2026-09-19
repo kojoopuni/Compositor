@@ -223,10 +223,99 @@ def make_tileable_brings_opposite_edges_together(folder):
     before = edge_gap()
     result = run("make-tileable", project, "Lit")
     after = edge_gap()
-    assert result["lightingEvened"] is True
+    assert result["lighting"] == 100
     assert before > 90 and after < 30, f"edges differed by {before:.0f} before and {after:.0f} after"
     assert sample(project, 32, 32)[3] == 255, "the texture stays opaque"
     assert "2–40" in refused("make-tileable", project, "Lit", "--band", 80)
+
+
+def png16(path, width, height, value):
+    """A 16-bit grayscale PNG; `value(x, y)` gives 0–65535."""
+    rows = b"".join(b"\x00" + b"".join(struct.pack(">H", value(x, y)) for x in range(width)) for y in range(height))
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    with open(path, "wb") as file:
+        file.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 16, 0, 0, 0, 0))
+                   + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+def pixel_of(image_path, folder, x, y):
+    """A pixel of any image file, read by placing it in a throwaway project."""
+    probe = os.path.join(folder, f"probe-{abs(hash((image_path, x, y)))}.comp")
+    info = run("cutout", image_path, "--out", os.path.join(folder, "unused.png")) if False else None
+    size = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", image_path], capture_output=True, text=True).stdout.split()
+    run("new", probe, "--width", size[-3], "--height", size[-1], "--overwrite")
+    run("add-layer", probe, image_path)
+    return sample(probe, x, y)
+
+
+@test
+def the_apps_texture_filters_run_from_the_command_line(folder):
+    project = os.path.join(folder, "filters.comp")
+    run("new", project, "--width", 40, "--height", 40)
+    run("add-layer", project, os.path.join(folder, "split.png"), "--name", "Split")
+    run("filter", project, "Split", "Gaussian Blur", "--radius", 4, "--keep-edges")
+    assert sample(project, 0, 20)[3] == 255 and sample(project, 39, 0)[3] == 255, "edges stay solid"
+    assert 60 < sample(project, 20, 20)[0] < 200, "and the inside is blurred"
+    assert next(layer for layer in layers(project) if layer["name"] == "Split")["width"] == 40, "the layer did not grow"
+    run("filter", project, "Split", "Height to Normal Map", "--strength", 4, "--no-wrap")
+    flat, slope = sample(project, 3, 20), sample(project, 20, 20)
+    assert near(flat, (128, 128, 255, 255), 3), flat
+    assert slope[0] < 110 and abs(slope[1] - 128) <= 3, f"height rising to the right leans the normal left: {slope}"
+    run("add-blank-layer", project, "--name", "Sky")
+    assert "layer with pixels" in refused("filter", project, "Sky", "Clouds")
+    for name in ["High Pass", "Unsharp Mask", "Even Lighting", "Clouds"]:
+        run("filter", project, "Split", name)
+    assert sample(project, 5, 5)[3] == 255
+
+
+@test
+def exports_cover_engine_formats_and_bleed_color_under_transparency(folder):
+    project = os.path.join(folder, "bleed.comp")
+    run("new", project, "--width", 32, "--height", 32)
+    run("add-layer", project, os.path.join(folder, "red.png"), "--name", "Red", "--width", 8, "--height", 8, "--x", 12, "--y", 12)
+    for name in ["out.tiff", "out.tga", "bled.png", "bled.tga"]:
+        run("export", project, "--out", os.path.join(folder, name), *(["--bleed", 6] if name.startswith("bled") else []))
+    assert os.path.getsize(os.path.join(folder, "out.tga")) == 18 + 32 * 32 * 4
+    with open(os.path.join(folder, "out.tga"), "rb") as file:
+        plain = file.read()
+    with open(os.path.join(folder, "bled.tga"), "rb") as file:
+        bled = file.read()
+    beside = 18 + (16 * 32 + 9) * 4   # three pixels left of the square, stored blue, green, red, alpha
+    assert plain[beside:beside + 4] == bytes([0, 0, 0, 0]) and bled[beside:beside + 4] == bytes([0, 0, 255, 0])
+    assert "0–256" in refused("export", project, "--out", os.path.join(folder, "x.png"), "--bleed", 999)
+
+
+@test
+def map_sets_are_derived_packed_and_heightmaps_read_at_full_depth(folder):
+    project = os.path.join(folder, "maps.comp")
+    run("new", project, "--width", 32, "--height", 32)
+    png(os.path.join(folder, "ramp.png"), 32, 32, lambda x, y: (x * 8, x * 8, x * 8, 255))
+    run("add-layer", project, os.path.join(folder, "ramp.png"))
+    maps = run("derive-maps", project, "--out-dir", os.path.join(folder, "set"), "--name", "wall")["maps"]
+    assert sorted(maps) == ["albedo", "ao", "height", "normal", "roughness"] and all(os.path.exists(path) for path in maps.values())
+    assert pixel_of(maps["normal"], folder, 16, 16)[0] < 120, "brighter to the right reads as rising to the right"
+
+    png(os.path.join(folder, "ao.png"), 8, 8, lambda x, y: (200, 200, 200, 255))
+    png(os.path.join(folder, "rough.png"), 8, 8, lambda x, y: (50, 50, 50, 255))
+    packed = os.path.join(folder, "orm.png")
+    result = run("pack-channels", "--layout", "orm", "--ao", os.path.join(folder, "ao.png"),
+                 "--roughness", os.path.join(folder, "rough.png"), "--out", packed)
+    assert result["channels"] == {"red": "ao.png", "green": "rough.png"}
+    assert near(pixel_of(packed, folder, 4, 4), (200, 50, 0, 255), 3), "occlusion in red, roughness in green, no metal in blue"
+    mask = os.path.join(folder, "mask.png")
+    run("pack-channels", "--layout", "unity-mask", "--roughness", os.path.join(folder, "rough.png"), "--out", mask)
+    assert "different sizes" in refused("pack-channels", "--red", os.path.join(folder, "ao.png"), "--green", os.path.join(folder, "ramp.png"), "--out", packed)
+
+    # A slope so gentle that 8 bits would flatten it into steps: 16 bits keeps it a steady lean.
+    png16(os.path.join(folder, "terrain.png"), 64, 8, lambda x, y: 20000 + x * 40)
+    normal = os.path.join(folder, "terrain_normal.png")
+    result = run("heightmap-normal", os.path.join(folder, "terrain.png"), "--out", normal, "--strength", 50, "--no-wrap")
+    assert result["bitsRead"] == 16
+    reds = {pixel_of(normal, folder, x, 4)[0] for x in (10, 25, 40, 55)}
+    assert len(reds) == 1 and reds.pop() < 128, "every column leans the same way by the same amount"
 
 
 @test
@@ -254,7 +343,7 @@ def renders_and_exports_write_files_of_the_right_size(folder):
     for name in ["full.png", "full.jpg"]:
         run("export", project, "--out", os.path.join(folder, name), "--quality", 80)
         assert os.path.getsize(os.path.join(folder, name)) > 100
-    assert ".png or .jpg" in refused("export", project, "--out", os.path.join(folder, "full.gif"))
+    assert ".tiff or .tga" in refused("export", project, "--out", os.path.join(folder, "full.gif"))
     assert "outside" in refused("sample", project, "--at", "500,500")
 
 

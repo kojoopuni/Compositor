@@ -29,16 +29,25 @@ extension Commands {
         return try json(["rendered": output.path, "width": image.width, "height": image.height])
     }
 
-    /// The finished image at full size: PNG (with transparency) or JPEG (--quality 0–100, flattened onto white
-    /// or --matte r,g,b), chosen by the file extension.
+    /// The finished image at full size, in the format its extension names: PNG, TIFF or TGA (with transparency) or
+    /// JPEG (--quality 0–100, flattened onto white or --matte r,g,b). --bleed PX spreads color under the
+    /// transparency around cut-outs in PNG and TGA, so a game engine shows no dark halo.
     static func export(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let workspace = try await Workspace.open(try arguments.url(0, "the project"))
         guard let output = arguments.url(option: "out") else { throw CommandError("export needs --out <file.png or .jpg>") }
         let snapshot = try workspace.snapshot()
+        let bleed = try arguments.integer("bleed") ?? 0
+        guard (0...256).contains(bleed) else { throw CommandError("--bleed is 0–256 pixels") }
         switch output.pathExtension.lowercased() {
+        case "png" where bleed > 0:
+            try await ImageExporter.shared.write(try await ImageExporter.shared.pngData(snapshot, bleed: bleed), to: output)
         case "png":
             try await ImageExporter.shared.exportPNG(snapshot, to: output)
+        case "tif", "tiff":
+            try await ImageExporter.shared.write(try await ImageExporter.shared.data(snapshot, as: .tiff), to: output)
+        case "tga":
+            try await ImageExporter.shared.write(try await ImageExporter.shared.data(snapshot, as: .tga, bleed: bleed), to: output)
         case "jpg", "jpeg":
             let quality = (try arguments.number("quality") ?? 90) / 100
             guard (0...1).contains(quality) else { throw CommandError("--quality is 0–100") }
@@ -54,7 +63,7 @@ extension Commands {
                 red: matte[0], green: matte[1], blue: matte[2]))
             try await ImageExporter.shared.write(result.data, to: output)
         default:
-            throw CommandError("export writes .png or .jpg files")
+            throw CommandError("export writes .png, .jpg, .tiff or .tga files")
         }
         return try json(["exported": output.path, "width": snapshot.manifest.width, "height": snapshot.manifest.height])
     }
@@ -69,18 +78,8 @@ extension Commands {
         guard (2...8).contains(count) else { throw CommandError("--repeat is 2–8") }
         let tile = try await ImageExporter.shared.render(try workspace.snapshot()).image
         let limit = max(64, try arguments.integer("max-size") ?? 2048)
-        // Each tile is drawn at a whole number of pixels, so the sheet shows no seams of its own.
-        let side = max(1, min(tile.width, limit / count)), tall = max(1, Int((Double(tile.height) * Double(side) / Double(tile.width)).rounded()))
-        guard let context = CGContext(data: nil, width: side * count, height: tall * count, bitsPerComponent: 8,
-                                      bytesPerRow: side * count * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw CommandError("the preview could not be made")
-        }
-        context.interpolationQuality = .high
-        for row in 0..<count { for column in 0..<count {
-            context.draw(tile, in: CGRect(x: column * side, y: row * tall, width: side, height: tall))
-        } }
-        guard let sheet = context.makeImage() else { throw CommandError("the preview could not be made") }
+        let sheet = try TileSheet.image(of: tile, count: count, limit: limit)
+        let side = sheet.width / count, tall = sheet.height / count
         try write(sheet, to: output, type: .png, properties: [:])
         return try json(["rendered": output.path, "width": sheet.width, "height": sheet.height, "repeat": count,
                          "tile": ["width": side, "height": tall]])

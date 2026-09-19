@@ -51,7 +51,7 @@ try {
 
   await test("every tool is listed with a description and annotations", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 20);
+    assert.equal(tools.length, 23);
     for (const tool of tools) {
       assert.ok(tool.name.startsWith("compositor_"), tool.name);
       assert.ok((tool.description ?? "").length > 40, `${tool.name} needs a real description`);
@@ -117,6 +117,27 @@ try {
     assert.ok(!cut.failed && cut.data?.width <= 512 && cut.data?.project, JSON.stringify(cut.data ?? cut.content));
   });
 
+  await test("a texture goes from layer to packed engine maps", async () => {
+    const texture = path.join(folder, "texture.comp");
+    await writeFile(path.join(folder, "lit.png"), png(64, 64, (x, y) => { const v = 60 + x * 2 + ((x * 7 + y * 13) % 23); return [v, v, v, 255]; }));
+    await call("compositor_new_project", { project: texture, width: 64, height: 64 });
+    await call("compositor_add_image_layer", { project: texture, image: path.join(folder, "lit.png"), name: "Stone" });
+    const tiled = await call("compositor_make_tileable", { project: texture, layer: "Stone", band: 14, lighting: 100 });
+    assert.ok(!tiled.failed, JSON.stringify(tiled.content));
+    const left = await call("compositor_sample_color", { project: texture, x: 0, y: 30 }), right = await call("compositor_sample_color", { project: texture, x: 63, y: 30 });
+    assert.ok(Math.abs(left.data?.red - right.data?.red) < 40, `edges ${left.data?.red} and ${right.data?.red}`);
+    await call("compositor_apply_filter", { project: texture, layer: "Stone", filter: "Gaussian Blur", radius: 2, keep_edges: true });
+    assert.equal((await call("compositor_sample_color", { project: texture, x: 0, y: 0 })).data?.alpha, 255);
+    const maps = await call("compositor_derive_maps", { project: texture, out_dir: path.join(folder, "set"), name: "stone" });
+    assert.deepEqual(Object.keys(maps.data?.maps).sort(), ["albedo", "ao", "height", "normal", "roughness"]);
+    const packed = await call("compositor_pack_channels", { output: path.join(folder, "set", "stone_orm.png"), layout: "orm", ao: maps.data?.maps.ao, roughness: maps.data?.maps.roughness });
+    assert.deepEqual(packed.data?.channels, { red: "stone_ao.png", green: "stone_roughness.png" });
+    const normal = await call("compositor_heightmap_normal", { heightmap: maps.data?.maps.height, output: path.join(folder, "set", "stone_n.png"), no_wrap: true });
+    assert.equal(normal.data?.width, 64);
+    const tga = await call("compositor_export", { project: texture, output: path.join(folder, "set", "stone.tga"), bleed: 8 });
+    assert.ok(!tga.failed);
+  });
+
   await test("mistakes come back as errors that say what to do", async () => {
     const missing = await call("compositor_set_layer", { project, layer: "Nope", opacity: 50 });
     assert.ok(missing.failed && /no layer/.test(missing.content[0].text ?? ""));
@@ -128,7 +149,7 @@ try {
     assert.ok(subject.failed && /subject/i.test(subject.content[0].text ?? ""));
   });
 
-  console.log(`${passed} of 6 passed`);
+  console.log(`${passed} of 7 passed`);
 } finally {
   await client.close();
   await rm(folder, { recursive: true, force: true });

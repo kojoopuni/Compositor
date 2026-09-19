@@ -20,6 +20,7 @@
 				Document/ProjectWorkspace.swift,
 				IO/CompositorApplicationDelegate.swift,
 				IO/ImageFileDrop.swift,
+				"IO/ProjectController+Formats.swift",
 				IO/ProjectController.swift,
 				Rendering/BrushCursorOverlay.swift,
 				Rendering/EditorCanvas.swift,
@@ -35,6 +36,7 @@
 				UI/CurvesControls.swift,
 				UI/FilterSheet.swift,
 				UI/FloatingPanel.swift,
+				UI/ForkMenus.swift,
 				UI/GradientControls.swift,
 				UI/HueSaturationSheet.swift,
 				UI/ImageSizeSheet.swift,
@@ -51,6 +53,7 @@
 				UI/ProjectWindowBridge.swift,
 				UI/ShapeControls.swift,
 				UI/SliderSnap.swift,
+				UI/TilePreview.swift,
 				UI/ToolHeaderStyle.swift,
 				UI/TransformInspector.swift,
 			);

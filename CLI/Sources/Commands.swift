@@ -22,6 +22,9 @@ enum Commands {
         case "add-blank-layer": return try await addEmptyLayer(rest, folder: false)
         case "move-layer": return try await moveLayer(rest)
         case "make-tileable": return try await makeTileable(rest)
+        case "derive-maps": return try await deriveMaps(rest)
+        case "pack-channels": return try await packChannels(rest)
+        case "heightmap-normal": return try await heightmapNormal(rest)
         case "crop": return try await crop(rest)
         case "cutout": return try await cutout(rest)
         case "resize": return try await resize(rest)
@@ -78,11 +81,16 @@ enum Commands {
           remove-background <project> <layer> [--edge clean|soft] [--refine PX --contrast 0-100 --shift PX]
           subject-mask     <project> <layer> --out mask.png [--edge clean|soft]
           filter           <project> <layer> "<filter name>" [--radius --angle --distance --amount --gaussian
-                           --monochromatic --distortion --horizontal --vertical --exposure --offset --gamma]
+                           --monochromatic --distortion --horizontal --vertical --exposure --offset --gamma
+                           --keep-edges --threshold --strength --y-down --no-wrap --band --lighting --cells]
           add-adjustment   <project> "<kind>" [--above LAYER] [--name N] [Levels: --black --gamma --white
                            --output-black --output-white | Hue/Saturation: --hue --saturation --lightness
                            --colorize | Exposure: --exposure --offset --gamma]
-          make-tileable    <project> <layer> [--band PERCENT] [--keep-lighting]
+          make-tileable    <project> <layer> [--band PERCENT] [--lighting 0-100]
+          derive-maps      <project> --out-dir DIR --name NAME [--strength S] [--y-down]
+          pack-channels    --out packed.png [--layout orm|unity-mask] [--ao F --roughness F --metallic F]
+                           [--red F --green F --blue F --alpha F]
+          heightmap-normal <16-bit heightmap> --out normal.png [--strength S] [--y-down] [--no-wrap]
           crop             <project> --box x,y,w,h | --to-content [--padding PX]
           cutout           <image> --out subject.png [--padding PX] [--edge clean|soft] [--project keep.comp]
           resize           <project> --width W | --height H | --scale PERCENT [--resolution PPI] [--sampling S]
@@ -90,7 +98,7 @@ enum Commands {
           render           <project> --out view.png [--region x,y,w,h] [--max-size PX]
           tile-preview     <project> --out sheet.png [--repeat 3] [--max-size PX]
           sample           <project> --at x,y
-          export           <project> --out file.png|.jpg [--quality 0-100] [--matte r,g,b]
+          export           <project> --out file.png|.jpg|.tiff|.tga [--quality 0-100] [--matte r,g,b] [--bleed PX]
 
           placement:  --x --y --width --height --scale PERCENT --rotation DEG --flip-x B --flip-y B --sampling S
           appearance: --opacity 0-100 --blend "<mode name>"
