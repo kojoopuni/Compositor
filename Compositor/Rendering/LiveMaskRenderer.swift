@@ -36,9 +36,12 @@ nonisolated final class LiveMaskRenderer {
             layer_unpremultiply_opaque(pixels, base.bytesPerRow, w, h)
             layer_unpremultiply_opaque(top.data!.assumingMemoryBound(to: UInt8.self), top.bytesPerRow, w, h)
             guard let foreground = top.makeImage() else { return }
-            base.setBlendMode(blendMode(id).cgMode)
             base.translateBy(x: 0, y: CGFloat(h)); base.scaleBy(x: 1, y: -1)
-            base.draw(foreground, in: rect)
+            // The modes Core Graphics lacks or gets wrong are blended by Core Image, here as for ordinary layers.
+            if !SeparableBlend.draw(blendMode(id), in: base, body: { $0.draw(foreground, in: rect) }) {
+                base.setBlendMode(blendMode(id).cgMode)
+                base.draw(foreground, in: rect)
+            }
             layer_restore_alpha(pixels, base.bytesPerRow, coverage, alpha.bytesPerRow, w, h)
             guard let result = base.makeImage() else { return }
             adjusted = result
