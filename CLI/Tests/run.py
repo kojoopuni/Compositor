@@ -206,6 +206,30 @@ def offset_wraps_a_texture_and_the_tile_preview_repeats_it(folder):
 
 
 @test
+def make_tileable_brings_opposite_edges_together(folder):
+    import random
+    random.seed(3)
+    speckle = [[random.randint(-18, 18) for _ in range(64)] for _ in range(64)]
+    # Much brighter on the right than the left, so untouched it cannot tile.
+    png(os.path.join(folder, "lit.png"), 64, 64, lambda x, y: (*(max(0, min(255, 60 + x * 2 + speckle[y][x])),) * 3, 255))
+    project = os.path.join(folder, "tileable.comp")
+    run("new", project, "--width", 64, "--height", 64)
+    run("add-layer", project, os.path.join(folder, "lit.png"), "--name", "Lit")
+
+    def edge_gap():
+        rows = range(4, 60, 8)
+        return sum(abs(sample(project, 0, y)[0] - sample(project, 63, y)[0]) for y in rows) / len(rows)
+
+    before = edge_gap()
+    result = run("make-tileable", project, "Lit")
+    after = edge_gap()
+    assert result["lightingEvened"] is True
+    assert before > 90 and after < 30, f"edges differed by {before:.0f} before and {after:.0f} after"
+    assert sample(project, 32, 32)[3] == 255, "the texture stays opaque"
+    assert "2–40" in refused("make-tileable", project, "Lit", "--band", 80)
+
+
+@test
 def resizing_resamples_and_canvas_size_does_not(folder):
     project = os.path.join(folder, "size.comp")
     run("new", project, "--width", 40, "--height", 40)

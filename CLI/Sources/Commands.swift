@@ -21,6 +21,7 @@ enum Commands {
         case "add-folder": return try await addEmptyLayer(rest, folder: true)
         case "add-blank-layer": return try await addEmptyLayer(rest, folder: false)
         case "move-layer": return try await moveLayer(rest)
+        case "make-tileable": return try await makeTileable(rest)
         case "crop": return try await crop(rest)
         case "cutout": return try await cutout(rest)
         case "resize": return try await resize(rest)
@@ -81,6 +82,7 @@ enum Commands {
           add-adjustment   <project> "<kind>" [--above LAYER] [--name N] [Levels: --black --gamma --white
                            --output-black --output-white | Hue/Saturation: --hue --saturation --lightness
                            --colorize | Exposure: --exposure --offset --gamma]
+          make-tileable    <project> <layer> [--band PERCENT] [--keep-lighting]
           crop             <project> --box x,y,w,h | --to-content [--padding PX]
           cutout           <image> --out subject.png [--padding PX] [--edge clean|soft] [--project keep.comp]
           resize           <project> --width W | --height H | --scale PERCENT [--resolution PPI] [--sampling S]
