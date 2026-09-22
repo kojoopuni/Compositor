@@ -17,62 +17,33 @@ TEST_RUNNER_BRUSH_BENCHMARK=1 xcodebuild … -parallel-testing-enabled NO \
   -only-testing:CompositorTests/BrushPerformanceTests test
 ```
 
-### Baseline (upstream `a19db90`, 2026-09-18)
+### Baseline (upstream 1.2.2, `609dbea`, 2026-09-22)
 
-Upstream's suite did not compile at that commit; branch `fix/stale-tests` brings seven stale tests back in line with the app. Two real rendering bugs the tests then caught are fixed on `fix/rendering-bugs` (merged here, not yet sent upstream):
+Upstream moved fast after launch: 74 commits and 15 releases in four days, adding its own type tool, PSD import, layer effects, all Photoshop blend modes, Black & White, Color Balance, Invert, object selection, rulers and guides, RAW import, brush smoothing, and the same bug fixes and test repairs this fork had made. The fork was rebased onto 1.2.2 on 2026-09-22 and **everything upstream now does was dropped from the fork in favor of upstream's own**. Kojo uses upstream's released app; the fork's app build exists only for the few app-side features below.
 
-- Color Dodge and Color Burn blended in linear light, because `SeparableBlend`'s Core Image context was left color-managed; every other mode blends sRGB values. 0.8 dodged over 0.4 exported as 0.616 instead of white.
-- Levels applied its alpha handling twice (once in `levels_apply`, again in Swift since upstream's "Fix dark soft edges" commit), darkening soft edges.
-
-One test still fails on unmodified app code and is the regression baseline — anything else failing is ours:
-
-- `CursorTests.optionOverALayerRowOffersDuplicatingExceptOverThumbnails` — compares `NSCursor.current`, which depends on the test window being frontmost; likely environmental.
-
-`SelectionEditTests.invertIsFast…` has a 1.5 s time limit and fails only under parallel load; run suites with `-parallel-testing-enabled NO` when timing matters.
+One test fails on unmodified upstream code and is the regression baseline: `CursorTests.optionOverALayerRow…` (depends on the test window being frontmost).
 
 ## The fork's features, and the parity rule
 
-**Every feature must be reachable from the app's menus, not only from the tools.** Build it into the app first, then have `compositor-cli` and the MCP server call that same code. If something needs new UI before it can be in the app, say so plainly ("no GUI yet") rather than leaving it silent.
+**Every feature must be reachable from the app's menus, not only from the tools.** If something needs new UI before it can be in the app, say so plainly ("no GUI yet").
 
-In the app (each reachable from a menu; the fork's menu items live in `UI/ForkMenus.swift`, one small view per menu, so `CompositorApp.swift` carries one added line per menu):
+In the app (the fork's menu items live in `UI/ForkMenus.swift`, one small view per menu; `CompositorApp.swift` carries one added line per menu):
 
-- **Filter** (generated from `FilterKind`, so a new case appears by itself): Offset, Make Tileable, Even Lighting, High Pass, Unsharp Mask, Height to Normal Map, Clouds; "Keep edges solid" on the blurs. `Document/TextureFilters.swift`, `Rendering/TexturePixels.c`.
-- **Image**: Black & White, Threshold, Posterize, Vibrance, Color Balance, Photo Filter (also adjustment layers; one settings struct, `Document/ColorAdjustments.swift`, `Rendering/ColorPixels.c`), Trim Transparent Pixels (`Document/Trim.swift`).
-- **Layer**: New Text Layer… / Edit Text… (`Document/TextLayers.swift`, `UI/TextPanel.swift`; the text style rides in the shape slot, `LayerShapeStyle.text`, so saving, copying, resizing and undo needed no changes), Layer Effects (`Document/LayerEffects.swift`, generated layers beneath their source).
-- **Select**: Subject, Color Range (`Document/SmartSelections.swift`).
+- **Filter** (generated from `FilterKind`): Offset, Make Tileable, Even Lighting, High Pass, Unsharp Mask, Height to Normal Map, Clouds; "Keep edges solid" on the blurs. `Document/TextureFilters.swift`, `Rendering/TexturePixels.c`.
+- **Image**: Threshold, Posterize, Vibrance, Photo Filter (also adjustment layers; `Document/ColorAdjustments.swift`, `Rendering/ColorPixels.c`), Trim Transparent Pixels (`Document/Trim.swift`).
+- **Select**: Color Range (`Document/SmartSelections.swift`).
 - **View**: Tile Preview (`UI/TilePreview.swift`, `Rendering/TileSheet.swift`).
-- **File**: Export TIFF, TGA, PNG with Edge Bleed; Open Photoshop Document… (`IO/ExportFormats.swift`, `IO/PSDImporter.swift`, `IO/ProjectController+Formats.swift`).
-- **App menu**: Allow Assistant Control (`Control/`, a loopback, token-protected server; off by default).
-- Blend modes: ten more at the end of `LayerBlendMode`; those Core Graphics lacks go through `SeparableBlend` via `coreImageFilter`.
-- Pen pressure: `Document/PenPressure.swift` reads it from the current event; a pen stroke uses the brush's software path with per-dab size, a mouse stroke is untouched (GPU path).
+- **File**: Export TIFF, TGA, PNG with Edge Bleed (`IO/ExportFormats.swift`, `IO/ProjectController+Formats.swift`).
+- **App menu**: Allow Assistant Control (`Control/`, a loopback, token-protected server; off by default; needs the `network.server` entitlement).
+- Pen pressure: `Document/PenPressure.swift`; a pen stroke uses the brush's software path with per-dab size, a mouse stroke is untouched.
 
-Upstream's five busiest files (`EditorCanvas`, `EditorSession`, `ContentView`, `NativeLayerList`, `project.pbxproj`) have no fork edits. Keep it that way.
+Edits to upstream's own files, all small: `Filters.swift` (cases, settings, run arms), `LayerAdjustment.swift` and `AdjustmentEditing.swift` (four kinds), `FilterSheet.swift` (rows), `BrushStroke.swift` and `EditorSession+Brush.swift` (pressure), `CompositorApp.swift` (five one-line hooks), `CompositorApplicationDelegate.swift` (one line), the entitlements and bridging header, and four test files that switch over adjustment kinds. Upstream's `EditorCanvas`, `EditorSession`, `ContentView`, `NativeLayerList` and `project.pbxproj` have no fork edits. Keep it that way.
 
-No GUI yet (command-line and MCP only): `derive-maps`, `pack-channels`, `heightmap-normal`, `cutout`, `run-action`, and everything that needs an image model (generate, edit, generative fill, model-based seam healing, upscale; `MCP/src/providers/`). Not built: pen tool, warp/perspective, smart objects, on-canvas text editing, live layer styles.
+The tools call upstream's own code for text (`applyText`), effects (`setEffects`), PSD (`PSDReader`, `insertPhotoshop`) and subject selection. `CLI/make_project.py` must exclude any new upstream file that needs a window (`WINDOWED`) and include any `UI/` file the engine itself refers to (`ENGINE_UI`); the build tells you which.
+
+No GUI yet (command-line and MCP only): `derive-maps`, `pack-channels`, `heightmap-normal`, `cutout`, `run-action`, and everything that needs an image model (generate, edit, generative fill, model-based seam healing, upscale; `MCP/src/providers/`).
 
 Hands-on checks for a person are in `Fork/TESTING.md`. `Fork/sync-upstream.sh` dry-runs a merge of upstream's latest and rebuilds the tool against it.
-
-Build the fork's own app with `Fork/build-app.sh` (`--install` copies it to /Applications as "Compositor Fork", with its own bundle id and upstream's update feed replaced by the fork's empty one).
-
-## Command-line tool (`CLI/`, fork-only)
-
-`compositor-cli` is the app's engine without a window, built from its own project so `Compositor.xcodeproj` is never edited. It compiles everything under `Compositor/` except `UI/` and the handful of files that build views or windows.
-
-```sh
-python3 CLI/make_project.py      # regenerate the project; run after merging upstream (new UI files are excluded from disk)
-python3 CLI/Tests/run.py         # build, then run the end-to-end tests
-CLI/build/Debug/compositor-cli help
-```
-
-- If upstream adds a file outside `UI/` that needs a window, the CLI build fails on it: add it to `WINDOWED` in `CLI/make_project.py`.
-- Commands open the project into a bare `EditorSession` and call the same methods the app does (`Workspace.swift`), so edits follow the app's rules. Resizing uses the `ImageResizer`/`CanvasResizer` actors on the saved snapshot.
-- Automatic filters (Remove Background) commit only after their preview settles; `Commands.apply` waits for that.
-- The app's blurs spread past a layer's edges by default; pass `--keep-edges` for a texture or background that must keep covering the canvas.
-- Never edit a `.comp` from the CLI while the app has it open with unsaved changes.
-
-## MCP server (`MCP/`, fork-only)
-
-A stdio MCP server (TypeScript) that shells out to `compositor-cli`; see `MCP/README.md` for setup and the tool list. `cd MCP && npm test` builds it and drives the real server as an MCP client. A new CLI command becomes a tool in `MCP/src/tools/`: inputs validated with Zod, a description that says when to use it, and annotations (`READ_ONLY`, `EDITS` or `DESTROYS` from `shared.ts`). `compositor_render_view` returns the canvas as image content, which is how the agent checks its own work.
 
 ## Rules that keep the fork mergeable
 

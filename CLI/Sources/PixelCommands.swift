@@ -138,8 +138,10 @@ extension Commands {
                 colorize: arguments.flag("colorize"))
         case .exposure:
             try read(&adjustment.exposure, arguments)
-        case .blackWhite, .threshold, .posterize, .vibrance, .colorBalance, .photoFilter:
+        case .threshold, .posterize, .vibrance, .photoFilter:
             try read(&adjustment.color, arguments)
+        case .blackWhite, .colorBalance, .invert:
+            break
         case .curves, .gradientMap, .grain:
             break
         }
@@ -150,29 +152,20 @@ extension Commands {
         return try json(["added": id.uuidString, "adjustment": kind.rawValue])
     }
 
-    /// Black & White: --reds --greens --blues (percent). Threshold: --level (1–255). Posterize: --levels (2–255).
-    /// Vibrance: --vibrance --saturation (−100–100). Color Balance: --shadows, --midtones, --highlights, each r,g,b
-    /// (−100–100), and --no-preserve-luminosity. Photo Filter: --filter-color r,g,b (0–255), --density (0–100).
+    /// Threshold: --level (1–255). Posterize: --levels (2–255). Vibrance: --vibrance --saturation (−100–100).
+    /// Photo Filter: --filter-color r,g,b (0–255), --density (0–100), --no-preserve-luminosity.
     private static func read(_ color: inout ColorAdjustments, _ arguments: Arguments) throws {
-        if let value = try arguments.number("reds") { color.grayRed = value }
-        if let value = try arguments.number("greens") { color.grayGreen = value }
-        if let value = try arguments.number("blues") { color.grayBlue = value }
         if let value = try arguments.number("level") { color.thresholdLevel = value }
         if let value = try arguments.number("levels") { color.posterizeLevels = value }
         if let value = try arguments.number("vibrance") { color.vibrance = value }
         if let value = try arguments.number("saturation") { color.saturation = value }
         if let value = try arguments.number("density") { color.filterDensity = value }
-        func triple(_ name: String) throws -> [Double]? {
-            guard let text = arguments.string(name) else { return nil }
+        if let text = arguments.string("filter-color") {
             let parts = text.split(separator: ",").compactMap { Double($0) }
-            guard parts.count == 3 else { throw CommandError("--\(name) is three numbers, r,g,b") }
-            return parts
+            guard parts.count == 3 else { throw CommandError("--filter-color is three numbers, r,g,b") }
+            color.filterColor = AdjustmentColor(red: parts[0] / 255, green: parts[1] / 255, blue: parts[2] / 255)
         }
-        if let v = try triple("shadows") { color.shadows = .init(red: v[0], green: v[1], blue: v[2]) }
-        if let v = try triple("midtones") { color.midtones = .init(red: v[0], green: v[1], blue: v[2]) }
-        if let v = try triple("highlights") { color.highlights = .init(red: v[0], green: v[1], blue: v[2]) }
-        if let v = try triple("filter-color") { color.filterColor = AdjustmentColor(red: v[0] / 255, green: v[1] / 255, blue: v[2] / 255) }
-        if arguments.flag("no-preserve-luminosity") { color.preserveLuminosity = false; color.filterPreservesLuminosity = false }
+        if arguments.flag("no-preserve-luminosity") { color.filterPreservesLuminosity = false }
         guard color.isValid else { throw CommandError("a color adjustment setting is out of range") }
     }
 

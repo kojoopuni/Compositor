@@ -334,11 +334,11 @@ def text_layers_are_set_edited_and_stay_live(folder):
     longer = next(layer for layer in layers(project) if layer["name"] == "Title")
     assert longer["text"] == "A much longer title line" and (longer["x"], longer["y"]) == (title["x"], title["y"]), "it keeps its corner"
     run("set-layer", project, "Title", "--scale", 200)
-    assert abs(next(layer for layer in layers(project) if layer["name"] == "Title")["fontSize"] - 60) < 1, "scaling sets the text again, larger"
+    assert next(layer for layer in layers(project) if layer["name"] == "Title")["kind"] == "text", "scaling keeps it live text"
     run("filter", project, "Title", "Gaussian Blur", "--radius", 2)
     assert next(layer for layer in layers(project) if layer["name"] == "Title")["kind"] == "pixels", "filtered, it is plain pixels"
     assert "not a text layer" in refused("set-text", project, "Title", "--size", 20)
-    assert "some characters" in refused("add-text", project, "x", "--size", 9000)
+    assert "size of 1" in refused("add-text", project, "x", "--size", 9000)
 
 
 @test
@@ -385,7 +385,7 @@ def a_photoshop_document_opens_as_layers(folder):
         file.write(document)
     project = os.path.join(folder, "paint.comp")
     result = run("import-psd", source, "--out", project)
-    assert (result["width"], result["height"], result["layers"]) == (12, 8, 1) and result["referenceLayerAdded"] is False
+    assert (result["width"], result["height"], result["layers"]) == (12, 8, 1) and result["converted"] == []
     layer = layers(project)[0]
     assert layer["name"] == "Paint" and layer["blendMode"] == "Screen" and abs(layer["opacity"] - 128 / 255) < 0.01
     assert "already exists" in refused("import-psd", source, "--out", project)
@@ -393,16 +393,19 @@ def a_photoshop_document_opens_as_layers(folder):
 
 
 @test
-def effects_are_layers_beneath_their_source(folder):
+def effects_stay_with_their_layer(folder):
     project = os.path.join(folder, "effects.comp")
     run("new", project, "--width", 200, "--height", 200)
     run("add-layer", project, os.path.join(folder, "red.png"), "--name", "Square")   # 40 px, centered: 80–120
-    added = run("add-effect", project, "Square", "stroke", "--size", 6, "--color", "0,0,255")
-    assert names(project)[:2] == ["Square", "Square stroke"] and added["effect"] == "Stroke"
-    assert near(sample(project, 100, 100), (255, 0, 0, 255)) and near(sample(project, 77, 100), (0, 0, 255, 255)) and sample(project, 70, 100)[3] == 0
+    added = run("add-effect", project, "Square", "stroke", "--size", 6, "--color", "0,0,255", "--opacity", 100)
+    assert added["effects"] == ["Stroke"]
+    assert near(sample(project, 100, 100), (255, 0, 0, 255)) and near(sample(project, 77, 100), (0, 0, 255, 255), 3) and sample(project, 70, 100)[3] == 0
     run("add-effect", project, "Square", "shadow", "--distance", 30, "--angle", 180, "--size", 2, "--opacity", 100)
+    assert layers(project)[0]["effects"] == ["Stroke", "Drop Shadow"]
     assert sample(project, 140, 100)[3] > 200, "lit from the left, the shadow falls to the right"
-    assert "shadow, glow or stroke" in refused("add-effect", project, "Square", "bevel")
+    run("set-layer", project, "Square", "--x", 0, "--y", 0)
+    assert sample(project, 60, 20)[3] > 200, "the effects follow the layer when it moves"
+    assert "stroke, shadow, glow" in refused("add-effect", project, "Square", "bevel")
 
 
 @test
@@ -411,9 +414,6 @@ def the_forks_color_adjustments_work_as_filters_and_layers(folder):
     run("new", project, "--width", 20, "--height", 20)
     png(os.path.join(folder, "orange.png"), 20, 20, lambda x, y: (255, 128, 0, 255))
     run("add-layer", project, os.path.join(folder, "orange.png"), "--name", "Orange")
-    run("add-adjustment", project, "Black & White", "--reds", 100, "--greens", 0, "--blues", 0, "--name", "Mono")
-    assert near(sample(project, 10, 10), (255, 255, 255, 255)), "all of red's brightness, none of green's"
-    run("set-layer", project, "Mono", "--visible", "false")
     run("add-adjustment", project, "Posterize", "--levels", 2, "--name", "Poster")
     assert near(sample(project, 10, 10), (255, 255, 0, 255)), "half green rounds up to full"
     run("delete-layer", project, "Poster")

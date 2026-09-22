@@ -19,7 +19,7 @@ Fork/sync-upstream.sh             # dry run: would upstream's latest merge and b
 
 ## By hand
 
-Install the fork's app first: `Fork/build-app.sh --install`, then open **Compositor Fork** from Applications. Each check says what to do and what should happen. Note anything that looks or feels wrong, even slightly; a screenshot is the most useful report.
+The fork's app is upstream's 1.2.2 plus the few features below. Install it with `Fork/build-app.sh --install`, then open **Compositor Fork** from Applications; keep using the released Compositor for everything else, since upstream's own text, effects, PSD import, blend modes and so on are the same in both. Each check says what to do and what should happen. Note anything that looks or feels wrong, even slightly; a screenshot is the most useful report.
 
 ### 1. It is a separate app
 - [ ] It sits beside the released Compositor, with its own name in the menu bar and Dock.
@@ -40,21 +40,18 @@ Open a photo of a fine-grained surface (soil, sand, plaster, concrete) and, sepa
 - [ ] **File > Export PNG with Edge Bleed…**, then put that PNG on a plane in Godot or Unity with filtering on: no dark halo around the edges. Compare with a plain Export PNG of the same cut-out.
 - [ ] **File > Export TGA…** and **Export TIFF…** open correctly in Blender or the engine, with transparency.
 
-### 4. General editing (Image, Layer, Select menus)
-- [ ] **Image >** Black & White, Threshold, Posterize, Vibrance, Color Balance, Photo Filter: each opens a panel with a live preview. The same six appear under **Layer > New Adjustment Layer**, and double-clicking such a layer reopens its panel with the saved values.
-- [ ] The blend mode menu now ends with Soft Light, Hard Light, Exclusion, Linear Dodge, Linear Burn, Vivid Light, Linear Light, Pin Light, Divide, Subtract. Compare two or three against Photoshop 2025 with the same two layers.
-- [ ] **Color Dodge** and **Levels with inverted output on a soft-edged layer** now match Photoshop (these were upstream bugs).
-- [ ] **Layer > New Text Layer…** (⇧⌘T): type, change font, size, tracking, leading, alignment and color; the canvas follows. Done, then scale the layer with the Move tool: the text stays sharp. **Layer > Edit Text…** reopens it. Paint on it and Edit Text… is disabled (it is pixels now).
-- [ ] **Layer > Layer Effects >** Drop Shadow, Outer Glow, Stroke on a cut-out or text layer: a new layer appears directly beneath, and the panel's sliders redraw it.
-- [ ] **Select > Subject** on a portrait, and **Select > Color Range** after picking a color with the Eyedropper.
+### 4. General editing (Image, Select menus)
+- [ ] **Image >** Threshold, Posterize, Vibrance, Photo Filter: each opens a panel with a live preview. The same four appear under **Layer > New Adjustment Layer**, and double-clicking such a layer reopens its panel with the saved values.
+- [ ] **Select > Color Range** after picking a color with the Eyedropper: every patch of that color is selected, wherever it is.
 - [ ] **With a pen tablet**: the Brush is thin with a light touch and full width pressed hard, swelling smoothly between. With a mouse it is exactly as before. How does the response feel: too sensitive, not enough?
-- [ ] **File > Open Photoshop Document…** on one of your own .psd files: layers, folders, masks and blend modes arrive in a new tab; a message lists anything Photoshop draws itself.
 
 ### 5. Working with Claude
 In a new Claude Code session (it sees the `compositor_` tools automatically):
 - [ ] "Using the compositor tools, list the image providers." The local ones should show as available; Gemini needs `GEMINI_API_KEY`.
 - [ ] "Generate a 1024 px top-down mossy cobblestone texture with flux2-klein-4b into ~/Desktop/cobble.comp, make it tileable with the model method, show me the tile preview, then derive its maps and pack an ORM texture into ~/Desktop/cobble-material." About two minutes locally. Then open the .comp in the app.
 - [ ] "Cut out ~/Desktop/<a photo> to a transparent PNG with 20 px padding and keep the project."
+- [ ] "Add a title layer saying THE RUINS in Georgia Bold with a drop shadow to ~/Desktop/cobble.comp." Open it in the app: the text is editable with the Type tool and the shadow is in Layer Effects.
+- [ ] "Open <one of your .psd files> as a project at ~/Desktop/from-psd.comp and tell me what had to be converted."
 - [ ] "Upscale <a small image> 2× with seedvr2-upscale." Compare with Image > Image Size at 200%.
 - [ ] Live: in the app switch on **Compositor Fork > Allow Assistant Control**, open a project, and ask Claude "what do I have open in Compositor?" then "blur the active layer by 4 px, keeping its edges". The change should appear in the app, and ⌘Z should undo it.
 - [ ] With that project open and unsaved, ask Claude to edit the same file with the file tools: it should refuse and say why.
@@ -62,8 +59,5 @@ In a new Claude Code session (it sees the `compositor_` tools automatically):
 ## Known limits, stated plainly
 - Make Tileable's built-in (patch) method smears surfaces made of distinct shapes; the model method handles those, from Claude only.
 - No GUI yet for: deriving map sets, packing channels, 16-bit heightmaps, actions, image generation, generative fill, model-based seam healing, AI upscaling. These are Claude-only until they get panels.
-- Layer effects are generated layers, not live styles: move or edit the source and the effect must be added again.
-- Text is edited in a panel, not by clicking on the canvas.
-- PSD import is one way; text and smart objects arrive as pixels, styles are dropped, 16-bit/CMYK/.psb are refused.
 - Not built: pen tool and vector paths, warp and perspective transform, smart objects, 16/32-bit color, CMYK.
 - Untested because nothing was available to test with: the Gemini provider (no API key), the Qwen-Image-Edit and Z-Image providers (not downloaded), a real pen tablet (pressure is tested with simulated values).

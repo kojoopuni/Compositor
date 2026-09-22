@@ -122,8 +122,8 @@ extension Commands {
     }
 
     /// compositor-cli import-psd <file.psd> --out project.comp [--overwrite]
-    /// Opens a Photoshop document as a project: layers, folders, masks, opacity and blend modes. Text and smart
-    /// objects arrive as pixels; adjustment layers are skipped and listed.
+    /// Opens a Photoshop document as a project with the app's own importer: layers, folders, masks, opacity, blend
+    /// modes, text and effects where it can. Anything it had to convert is listed.
     static func importPSD(_ raw: [String]) async throws -> String {
         let arguments = Arguments(raw)
         let source = try arguments.url(0, "the Photoshop document")
@@ -131,12 +131,18 @@ extension Commands {
         if FileManager.default.fileExists(atPath: output.path), !arguments.flag("overwrite") {
             throw CommandError("\(output.lastPathComponent) already exists; pass --overwrite to replace it")
         }
-        let result = try PSDImporter.load(source)
-        try await ProjectStore.shared.save(result.snapshot, to: output)
-        let manifest = result.snapshot.manifest
+        guard PSDReader.matches(source) else { throw CommandError("\(source.lastPathComponent) is not a Photoshop document") }
+        let parsed = try await ImageImporter.shared.loadPhotoshop(source)
+        let imported = try PSDDocumentBuilder.makeImport(parsed, assets: try await ImageImporter.shared.photoshopAssets(parsed))
+        let session = EditorSession()
+        session.createDocument(width: imported.width, height: imported.height)
+        if let index = session.document?.layers.indices.last { session.document?.layers.remove(at: index) }
+        try session.insertPhotoshop(imported, named: source.deletingPathExtension().lastPathComponent)
+        guard let snapshot = session.projectSnapshot() else { throw CommandError("the document could not be built") }
+        try await ProjectStore.shared.save(snapshot, to: output)
+        let manifest = snapshot.manifest
         return try json(["project": output.path, "width": manifest.width, "height": manifest.height,
                          "layers": manifest.layers.filter { $0.isGroup != true }.count, "folders": manifest.layers.filter { $0.isGroup == true }.count,
-                         "masks": result.snapshot.masks.count, "skippedAdjustmentAndFillLayers": result.skipped, "vectorMasksNotImported": result.vectorMasked,
-                         "referenceLayerAdded": manifest.layers.last?.name == PSDImporter.referenceName])
+                         "masks": snapshot.masks.count, "converted": imported.conversions.map { "\($0.layerName): \($0.message)" }])
     }
 }

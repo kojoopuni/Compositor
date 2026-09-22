@@ -28,7 +28,11 @@ WINDOWED = [
     "Rendering/TransformOverlay.swift",
     "Rendering/BrushCursorOverlay.swift",
     "Rendering/SampleRingOverlay.swift",
+    "Rendering/InlineTextEditor.swift",
 ]
+
+# Files under UI/ the engine itself refers to (plain value types beside their views), so they stay in.
+ENGINE_UI = ["UI/PSDConversionSheet.swift"]
 
 
 def identifier(name):
@@ -42,8 +46,9 @@ def excluded():
     for name in ["UI", "Control"]:
         for folder, _, files in os.walk(os.path.join(ENGINE, name)):
             for file in files:
-                if not file.startswith("."):
-                    paths.append(os.path.relpath(os.path.join(folder, file), ENGINE))
+                relative = os.path.relpath(os.path.join(folder, file), ENGINE)
+                if not file.startswith(".") and relative not in ENGINE_UI:
+                    paths.append(relative)
     return sorted(paths)
 
 

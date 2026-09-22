@@ -197,16 +197,17 @@ try {
     await call("compositor_add_image_layer", { project: card, image: path.join(folder, "gray.png"), name: "Base", width: 300, height: 120, x: 0, y: 0 });
     const added = await call("compositor_add_text", { project: card, text: "Ruins", size: 40, color: { red: 255, green: 0, blue: 0 }, align: "center", blend: "Linear Dodge (Add)" });
     assert.ok(!added.failed, JSON.stringify(added.content));
-    await call("compositor_set_text", { project: card, layer: "Ruins", text: "The Ruins", size: 30 });
+    const titleID = String(added.data?.added);
+    await call("compositor_set_text", { project: card, layer: titleID, text: "The Ruins", size: 30 });
     const info = await call("compositor_get_info", { project: card });
     const title = info.data?.layers[0];
     assert.ok(title.kind === "text" && title.text === "The Ruins" && title.fontSize === 30 && title.blendMode === "Linear Dodge (Add)", JSON.stringify(title));
-    const glow = await call("compositor_add_layer_effect", { project: card, layer: "The Ruins", effect: "glow", size: 10, color: { red: 255, green: 255, blue: 0 } });
+    const glow = await call("compositor_add_layer_effect", { project: card, layer: titleID, effect: "glow", size: 10, color: { red: 255, green: 255, blue: 0 } });
     assert.ok(!glow.failed && glow.data?.effect === "Outer Glow", JSON.stringify(glow.content));
-    const mono = await call("compositor_add_adjustment", { project: card, kind: "Black & White", reds: 100, greens: 0, blues: 0 });
+    const mono = await call("compositor_add_adjustment", { project: card, kind: "Black & White" });
     assert.ok(!mono.failed, JSON.stringify(mono.content));
-    const toned = await call("compositor_add_adjustment", { project: card, kind: "Color Balance", midtones: { red: 60, green: 0, blue: -40 } });
-    assert.ok(!toned.failed, JSON.stringify(toned.content));
+    const posterized = await call("compositor_add_adjustment", { project: card, kind: "Posterize", levels: 3 });
+    assert.ok(!posterized.failed, JSON.stringify(posterized.content));
   });
 
   await test("saved actions replay, and non-Photoshop files are refused", async () => {

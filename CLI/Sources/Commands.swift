@@ -61,11 +61,12 @@ enum Commands {
             ]
             if layer.isGroup == true { entry["kind"] = "folder" }
             else if let adjustment = layer.adjustment { entry["kind"] = "adjustment"; entry["adjustment"] = adjustment.kind.rawValue }
-            else if let text = layer.shape?.text { entry["kind"] = "text"; entry["text"] = text.string; entry["font"] = text.font; entry["fontSize"] = text.size }
+            else if let text = layer.text { entry["kind"] = "text"; entry["text"] = text.content; entry["font"] = text.fontName; entry["fontSize"] = text.fontSize }
             else { entry["kind"] = layer.imageFile == nil ? "blank" : "pixels" }
             if let parent = layer.parentID { entry["parent"] = parent.uuidString }
             if layer.maskFile != nil { entry["mask"] = layer.maskEnabled ?? true ? "enabled" : "disabled" }
             if let source = layer.maskSourceID { entry["clippedTo"] = source.uuidString }
+            if let effects = layer.effects, !effects.isEmpty { entry["effects"] = effects.kinds.map(\.rawValue) }
             return entry
         }
         return try json(["width": manifest.width, "height": manifest.height, "resolution": manifest.resolution ?? 72,
@@ -83,9 +84,9 @@ enum Commands {
           add-blank-layer  <project> [--name N] [--above LAYER]
           add-folder       <project> [--name N] [--above LAYER]
           add-text         <project> "<text>" [--font F --size PX --color r,g,b --align left|center|right
-                           --tracking N --leading N --wrap PX --x X --y Y --name N] [appearance]
+                           --tracking N --leading PX --x X --y Y --name N] [appearance]
           set-text         <project> <layer> [--text "<text>"] [the add-text options]
-          add-effect       <project> <layer> shadow|glow|stroke [--size PX --distance PX --angle DEG --opacity 0-100 --color r,g,b]
+          add-effect       <project> <layer> stroke|shadow|glow|inner-shadow|overlay [--size --distance --angle --opacity --color r,g,b]
           set-layer        <project> <layer> [--name N] [--visible true|false] [placement] [appearance]
           move-layer       <project> <layer> --top | --bottom | --out | --above LAYER | --into FOLDER
           delete-layer     <project> <layer>

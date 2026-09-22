@@ -9,28 +9,21 @@ import { edit } from "../providers/index.js";
 import { DESTROYS, EDITS, failed, layer, ok, project } from "../shared.js";
 
 const FILTERS = ["Gaussian Blur", "Motion Blur", "Add Noise", "Lens Correction", "Offset", "Make Tileable",
-  "Even Lighting", "High Pass", "Unsharp Mask", "Height to Normal Map", "Clouds", "Black & White", "Threshold", "Posterize",
-  "Vibrance", "Color Balance", "Photo Filter", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
-const ADJUSTMENTS = ["Hue/Saturation", "Levels", "Curves", "Exposure", "Gradient Map", "Grain", "Black & White", "Threshold",
-  "Posterize", "Vibrance", "Color Balance", "Photo Filter"] as const;
+  "Even Lighting", "High Pass", "Unsharp Mask", "Height to Normal Map", "Clouds", "Black & White", "Color Balance", "Threshold",
+  "Posterize", "Vibrance", "Photo Filter", "Curves", "Exposure", "Gradient Map", "Grain"] as const;
+const ADJUSTMENTS = ["Hue/Saturation", "Levels", "Curves", "Exposure", "Gradient Map", "Grain", "Invert", "Black & White", "Color Balance",
+  "Threshold", "Posterize", "Vibrance", "Photo Filter"] as const;
 const rgb = (what: string, low: number, high: number) => z.object({ red: z.number().min(low).max(high), green: z.number().min(low).max(high), blue: z.number().min(low).max(high) }).optional().describe(what);
 const colorInputs = {
-  reds: z.number().min(-200).max(300).optional().describe("Black & White: how much red contributes to the gray, percent (default 30)."),
-  greens: z.number().min(-200).max(300).optional().describe("Black & White: green's share (default 59)."),
-  blues: z.number().min(-200).max(300).optional().describe("Black & White: blue's share (default 11)."),
   level: z.number().min(1).max(255).optional().describe("Threshold: brightness at and above which a pixel turns white."),
   levels: z.number().int().min(2).max(255).optional().describe("Posterize: levels per channel."),
   vibrance: z.number().min(-100).max(100).optional().describe("Vibrance: lifts muted colors more than vivid ones."),
   density: z.number().min(0).max(100).optional().describe("Photo Filter: strength of the tint (default 25)."),
   filter_color: rgb("Photo Filter: the filter's color, 0–255 per channel (default a warming orange).", 0, 255),
-  shadows: rgb("Color Balance, shadows: red is cyan–red, green is magenta–green, blue is yellow–blue, each −100–100.", -100, 100),
-  midtones: rgb("Color Balance, midtones.", -100, 100),
-  highlights: rgb("Color Balance, highlights.", -100, 100),
 };
 function colorOptions(input: Record<string, any>) {
   const triple = (value?: { red: number; green: number; blue: number }) => (value ? `${value.red},${value.green},${value.blue}` : undefined);
-  return { reds: input.reds, greens: input.greens, blues: input.blues, level: input.level, levels: input.levels, vibrance: input.vibrance,
-    density: input.density, "filter-color": triple(input.filter_color), shadows: triple(input.shadows), midtones: triple(input.midtones), highlights: triple(input.highlights) };
+  return { level: input.level, levels: input.levels, vibrance: input.vibrance, density: input.density, "filter-color": triple(input.filter_color) };
 }
 
 /** Tools that mask, adjust or filter. Masks and adjustment layers are non-destructive; filters rewrite pixels. */
@@ -165,9 +158,9 @@ export function registerPixelTools(server: McpServer) {
         "its folder). It can be hidden, faded, masked, re-blended or deleted later like any layer, and edited by " +
         "double-clicking it in the app. Settings by kind — Levels: black, white (input 0–255), gamma, output_black, " +
         "output_white (swap them to invert). Hue/Saturation: hue (−180–180), saturation, lightness (−100–100), " +
-        "colorize. Exposure: exposure (stops), offset, gamma. Black & White: reds, greens, blues. Threshold: level. " +
-        "Posterize: levels. Vibrance: vibrance, saturation. Color Balance: shadows, midtones, highlights. Photo Filter: " +
-        "filter_color, density. Curves, Gradient Map and Grain are added at their defaults for editing in the app.",
+        "colorize. Exposure: exposure (stops), offset, gamma. Threshold: level. Posterize: levels. Vibrance: vibrance, " +
+        "saturation. Photo Filter: filter_color, density. Curves, Gradient Map, Grain, Invert, Black & White and Color " +
+        "Balance are added at their defaults for editing in the app.",
       inputSchema: {
         project,
         kind: z.enum(ADJUSTMENTS),

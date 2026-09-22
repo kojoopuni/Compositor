@@ -115,22 +115,20 @@ export function registerLayerTools(server: McpServer) {
     color: z.object({ red: z.number().int().min(0).max(255), green: z.number().int().min(0).max(255), blue: z.number().int().min(0).max(255) }).optional(),
     align: z.enum(["left", "center", "right"]).optional(),
     tracking: z.number().min(-200).max(1000).optional().describe("Letter spacing in thousandths of the font size, as in Photoshop."),
-    leading: z.number().min(0.5).max(4).optional().describe("Line height as a multiple of the font's own; 1 is as designed."),
-    wrap: z.number().min(8).max(30000).optional().describe("Wrap lines at this width in document pixels."),
+    leading: z.number().min(0).max(5000).optional().describe("Baseline to baseline in pixels, as Photoshop's Leading; 0 is automatic (120% of the size)."),
   };
   const textOptions = (input: Record<string, any>) => ({ font: input.font, size: input.size, align: input.align, tracking: input.tracking,
-    leading: input.leading, wrap: input.wrap, color: input.color ? `${input.color.red},${input.color.green},${input.color.blue}` : undefined });
+    leading: input.leading, color: input.color ? `${input.color.red},${input.color.green},${input.color.blue}` : undefined });
 
   server.registerTool(
     "compositor_add_text",
     {
       title: "Add a text layer",
       description:
-        "Sets text into a new layer on top (the app's Layer > New Text Layer…), centered unless x and y are given. It " +
-        "stays live: compositor_set_text changes its words or look, and scaling it with compositor_set_layer sets it " +
-        "again at the new size, so it never goes soft. Use \\n for a line break. Filtering or painting on it turns it " +
-        "into plain pixels. After adding, read the layer's size from the result of compositor_get_info and render, to " +
-        "check it fits the canvas and reads against what is behind it.",
+        "Sets text into a new layer on top with the app's Type tool, centered unless x and y are given. It stays " +
+        "live: compositor_set_text changes its words or look, and the user can edit it on the canvas in the app. Use " +
+        "\\n for a line break. Filtering or painting on it turns it into plain pixels. After adding, read the layer's " +
+        "size from compositor_get_info and render, to check it fits the canvas and reads against what is behind it.",
       inputSchema: {
         project, text: z.string().min(1).describe("The words. \\n starts a new line."), ...text,
         x: z.number().optional(), y: z.number().optional(), name: z.string().min(1).optional(), ...appearance,
@@ -148,7 +146,7 @@ export function registerLayerTools(server: McpServer) {
     "compositor_set_text",
     {
       title: "Change a text layer's words or look",
-      description: "Edits a live text layer (the app's Layer > Edit Text…): new words, font, size, color, alignment, spacing. The layer keeps its top-left corner. Fails, saying so, on a layer that is not text or no longer is.",
+      description: "Edits a live text layer: new words, font, size, color, alignment, spacing. The layer keeps its top-left corner. Fails, saying so, on a layer that is not text or no longer is.",
       inputSchema: { project, layer, text: z.string().min(1).optional().describe("New words; omit to keep them."), ...text },
       annotations: { ...EDITS, idempotentHint: true },
     },
@@ -162,17 +160,15 @@ export function registerLayerTools(server: McpServer) {
   server.registerTool(
     "compositor_add_layer_effect",
     {
-      title: "Add a drop shadow, glow or stroke to a layer",
+      title: "Add a stroke, shadow, glow, inner shadow or color overlay to a layer",
       description:
-        "The app's Layer > Layer Effects. The effect is drawn from the layer's outline (pixels through its mask, as " +
-        "placed and rotated) and added as its own layer directly beneath it, named after it, so it can be faded, " +
-        "masked, moved or deleted like any layer. It does not follow later changes to its layer: delete it and add it " +
-        "again after moving or editing the source. Works on cut-outs and text alike; a layer that fills the canvas " +
-        "has no outline to show. shadow: size is blur, distance how far it falls, angle where the light comes from " +
-        "(degrees counterclockwise from the right; 120 is upper left). glow: size is spread. stroke: size is thickness.",
+        "The app's Layer Effects: kept with the layer, following every later move or edit, editable in the app's " +
+        "panel, and never touching the pixels. Adding a kind the layer already has changes its settings. shadow and " +
+        "inner-shadow: size is blur, distance how far it falls, angle where the light comes from (degrees " +
+        "counterclockwise from the right; 90 is from above). stroke and glow: size is width. overlay: color and opacity.",
       inputSchema: {
         project, layer,
-        effect: z.enum(["shadow", "glow", "stroke"]),
+        effect: z.enum(["stroke", "shadow", "glow", "inner-shadow", "overlay"]),
         size: z.number().min(0).max(500).optional(), distance: z.number().min(0).max(2000).optional(), angle: z.number().optional(),
         opacity: z.number().min(0).max(100).optional(),
         color: z.object({ red: z.number().int().min(0).max(255), green: z.number().int().min(0).max(255), blue: z.number().int().min(0).max(255) }).optional(),
