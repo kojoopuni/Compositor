@@ -22,3 +22,14 @@ xcuserdata/
 # Claude Code settings personal to this machine
 .claude/settings.local.json
 BUILD_PLAN.md
+
+# Command-line tool build output
+CLI/build/
+
+# MCP server
+MCP/node_modules/
+MCP/dist/
+
+# Fork app build output
+Fork/build/
+Fork/build.log

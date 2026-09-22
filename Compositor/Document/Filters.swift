@@ -17,11 +17,23 @@ nonisolated enum FilterKind: String, CaseIterable, Sendable {
     case grain = "Grain"
     case blackWhite = "Black & White"
     case colorBalance = "Color Balance"
+    // The fork's filters. Texture work first, then the color adjustments Photoshop has that the Image menu lacks.
+    case offset = "Offset"
+    case makeTileable = "Make Tileable"
+    case evenLighting = "Even Lighting"
+    case highPass = "High Pass"
+    case unsharpMask = "Unsharp Mask"
+    case normalMap = "Height to Normal Map"
+    case clouds = "Clouds"
+    case threshold = "Threshold"
+    case posterize = "Posterize"
+    case vibrance = "Vibrance"
+    case photoFilter = "Photo Filter"
     var isAutomatic: Bool { self == .contentAwareFill || self == .removeBackground }
     /// Color adjustments: in the Image menu (and editable as adjustment layers), not under Filter.
     var isImageAdjustment: Bool {
         self == .curves || self == .exposure || self == .gradientMap || self == .grain
-            || self == .blackWhite || self == .colorBalance
+            || self == .blackWhite || self == .colorBalance || ColorAdjustments.kinds.contains(self)
     }
 }
 
@@ -53,6 +65,38 @@ nonisolated struct FilterSettings: Equatable, Sendable {
     var exposure = ExposureSettings()
     var gradientMap = GradientMapSettings()
     var grain = GrainSettings()
+    /// Offset: how far the pixels slide right, as a percentage of the layer's width, −100–100. What leaves one
+    /// edge comes back in at the other, so 50 brings a texture's seams to the middle where they can be retouched.
+    var offsetHorizontal: Double = 50
+    /// Offset: how far the pixels slide down, as a percentage of the layer's height, −100–100.
+    var offsetVertical: Double = 50
+    /// Gaussian and Motion Blur: soft inside but solid at the layer's own outline, instead of fading into the
+    /// transparency around it. For textures and backgrounds that must keep covering their borders.
+    var keepEdges = false
+    /// Make Tileable: width of the band rebuilt over the seams, as a percentage of the layer's shorter side, 2–40.
+    var tileBand: Double = 12
+    /// Make Tileable: how much of the broad light and shade is flattened first, 0–100.
+    var tileLighting: Double = 100
+    /// Even Lighting: how much of the broad light and shade is flattened, 0–100.
+    var lightingStrength: Double = 100
+    /// High Pass: the size of detail kept, in layer pixels, 0.1–250.
+    var highPassRadius: Double = 10
+    /// Unsharp Mask: strength as a percentage, 1–500.
+    var sharpenAmount: Double = 100
+    /// Unsharp Mask: the blur it sharpens against, in layer pixels, 0.1–250.
+    var sharpenRadius: Double = 2
+    /// Unsharp Mask: differences smaller than this many levels are left alone, 0–255.
+    var sharpenThreshold: Double = 0
+    /// Height to Normal Map: how steep the slopes are made, 0.1–50.
+    var normalStrength: Double = 4
+    /// Height to Normal Map: green points down, for Unreal and DirectX; off for Godot, Unity and Blender.
+    var normalYDown = false
+    /// Height to Normal Map: slopes at the edges read from the opposite edge, for a texture that tiles.
+    var normalWrap = true
+    /// Clouds: how many large features fit across the layer, 1–64.
+    var cloudCells: Double = 4
+    /// Threshold, Posterize, Vibrance and Photo Filter.
+    var color = ColorAdjustments()
     var blackWhite = BlackWhiteSettings()
     var colorBalance = ColorBalanceSettings()
     /// Remove Background: Basic is the quick subject mask; Advanced refines it (see the three settings below).
@@ -79,6 +123,18 @@ nonisolated struct FilterSettings: Equatable, Sendable {
         result.exposure = exposure.normalized
         result.gradientMap = gradientMap.normalized
         result.grain = grain.normalized
+        result.offsetHorizontal = clamp(offsetHorizontal, -100...100, 50)
+        result.offsetVertical = clamp(offsetVertical, -100...100, 50)
+        result.tileBand = clamp(tileBand, 2...40, 12)
+        result.tileLighting = clamp(tileLighting, 0...100, 100)
+        result.lightingStrength = clamp(lightingStrength, 0...100, 100)
+        result.highPassRadius = clamp(highPassRadius, 0.1...250, 10)
+        result.sharpenAmount = clamp(sharpenAmount, 1...500, 100)
+        result.sharpenRadius = clamp(sharpenRadius, 0.1...250, 2)
+        result.sharpenThreshold = clamp(sharpenThreshold, 0...255, 0)
+        result.normalStrength = clamp(normalStrength, 0.1...50, 4)
+        result.cloudCells = clamp(cloudCells, 1...64, 4)
+        result.color = color.normalized
         return result
     }
 }
@@ -125,6 +181,29 @@ nonisolated enum PixelFilter {
     /// Remove Distortion at ±100 moves the image's corners by this share of their distance from the center.
     static let lensStrength = 0.35
 
+    /// Offset's slide in whole pixels of an image this size, always forwards (0 up to the side's length), so a
+    /// percentage means the same slide on a preview as on the full layer.
+    static func offsetPixels(_ settings: FilterSettings, width: Int, height: Int) -> (x: Int, y: Int) {
+        func slide(_ percent: Double, _ side: Int) -> Int {
+            let pixels = Int((percent / 100 * Double(side)).rounded()) % side
+            return pixels < 0 ? pixels + side : pixels
+        }
+        return (slide(settings.offsetHorizontal, width), slide(settings.offsetVertical, height))
+    }
+    /// The image slid by `shift`, with what leaves each edge returning at the opposite one. Pixels are copied, never
+    /// resampled, so sliding back by the same amount restores the image exactly.
+    static func wrapped(_ image: CGImage, by shift: (x: Int, y: Int)) throws -> CGImage {
+        let width = image.width, height = image.height
+        guard shift.x != 0 || shift.y != 0 else { return image }
+        let context = try BrushRaster.context(width: width, height: height, mask: false)
+        for column in [shift.x - width, shift.x] {
+            for row in [shift.y - height, shift.y] {
+                BrushRaster.draw(image, in: CGRect(x: column, y: row, width: width, height: height), mask: false, context: context)
+            }
+        }
+        guard let result = context.makeImage() else { throw ExportError.render }
+        return result
+    }
     static func run(_ job: FilterJob) throws -> CGImage {
         let settings = job.settings.normalized
         let width = job.image.width, height = job.image.height
@@ -147,14 +226,16 @@ nonisolated enum PixelFilter {
             image = try ContentFill.run(job)
         case .gaussianBlur:
             let blurred = edges.applyingGaussianBlur(sigma: settings.radius * job.scale)
-            image = try PixelAdjust.render(blurred.cropped(to: extent), width: width, height: height, isMask: false)
+            let soft = try PixelAdjust.render(blurred.cropped(to: extent), width: width, height: height, isMask: false)
+            image = settings.keepEdges ? try TextureFilter.restoreEdges(soft, original: job.image) : soft
         case .motionBlur:
             // Core Image's y axis points up, so its counterclockwise angle matches Photoshop's.
             let streaked = edges.applyingFilter("CIMotionBlur", parameters: [
                 kCIInputRadiusKey: settings.distance * job.scale * motionRadiusPerPixel,
                 kCIInputAngleKey: settings.angle * .pi / 180,
             ])
-            image = try PixelAdjust.render(streaked.cropped(to: extent), width: width, height: height, isMask: false)
+            let soft = try PixelAdjust.render(streaked.cropped(to: extent), width: width, height: height, isMask: false)
+            image = settings.keepEdges ? try TextureFilter.restoreEdges(soft, original: job.image) : soft
         case .addNoise:
             // C, not Core Image: its random generator is uniform only, and Gaussian noise is needed too.
             let context = try BrushRaster.context(width: width, height: height, mask: false)
@@ -174,6 +255,25 @@ nonisolated enum PixelFilter {
                          width, height, source.bytesPerRow, settings.distortion / 100 * lensStrength)
             guard let corrected = destination.makeImage() else { throw ExportError.render }
             image = corrected
+        case .offset:
+            image = try wrapped(job.image, by: offsetPixels(settings, width: width, height: height))
+        case .makeTileable:
+            image = try TextureFilter.makeTileable(job.image, band: settings.tileBand, lighting: settings.tileLighting)
+        case .evenLighting:
+            image = try TextureFilter.evenLighting(job.image, strength: settings.lightingStrength)
+        case .highPass:
+            image = try TextureFilter.highPass(job.image, radius: settings.highPassRadius * job.scale)
+        case .unsharpMask:
+            image = try TextureFilter.unsharpMask(job.image, amount: settings.sharpenAmount,
+                                                  radius: settings.sharpenRadius * job.scale, threshold: settings.sharpenThreshold)
+        case .normalMap:
+            // A preview has fewer pixels across the same slopes, so each step is taller; scaling keeps the look.
+            image = try TextureFilter.normalMap(job.image, strength: settings.normalStrength * job.scale,
+                                                yDown: settings.normalYDown, wrap: settings.normalWrap)
+        case .clouds:
+            image = try TextureFilter.clouds(width: width, height: height, cells: settings.cloudCells, seed: job.seed)
+        case .threshold, .posterize, .vibrance, .photoFilter:
+            image = try settings.color.apply(job.kind, to: job.image)
         }
         guard let selection = job.selection else { return image }
         return try PixelAdjust.blend(image, over: job.image, through: selection, pixelToDocument: job.mapping, isMask: false)
@@ -233,6 +333,7 @@ final class FilterEdit {
 
     /// The room a blur needs around the layer: about three standard deviations, or half a streak.
     static func blurMargin(_ kind: FilterKind, _ settings: FilterSettings) -> CGFloat {
+        guard !settings.keepEdges else { return 0 }
         switch kind {
         case .gaussianBlur: return CGFloat(settings.radius * 3 + 2)
         case .motionBlur: return CGFloat(settings.distance / 2 + 2)
@@ -395,7 +496,10 @@ extension EditorSession {
         // No distortion to remove: close as Cancel does, without an undo step.
         if (edit.kind == .lensCorrection && edit.settings.distortion == 0)
             || (edit.kind == .exposure && edit.settings.exposure == ExposureSettings())
-            || (edit.kind == .grain && edit.settings.grain.amount == 0) { cancelFilter(); return }
+            || (edit.kind == .grain && edit.settings.grain.amount == 0)
+            || (edit.kind == .offset && PixelFilter.offsetPixels(edit.settings.normalized, width: edit.original.image.width,
+                                                                 height: edit.original.image.height) == (0, 0))
+            || edit.settings.color.isIdentity(edit.kind) { cancelFilter(); return }
         edit.committing = true
         edit.previewTask?.cancel()
         filterSettings = edit.settings

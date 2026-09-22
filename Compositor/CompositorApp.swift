@@ -68,6 +68,7 @@ struct CompositorApp: App {
                     Button("Export PNG…") { Task { await applicationDelegate.projects.exportPNG() } }
                         .configuredKeyboardShortcut("e", modifiers: [.command, .shift])
                         .disabled(session.document == nil || !applicationDelegate.projects.canStart)
+                    ExportFormatItems(session: session, projects: applicationDelegate.projects)
                     Button("Export JPEG…") { Task { await applicationDelegate.projects.exportJPEG() } }
                         .configuredKeyboardShortcut("s", modifiers: [.command, .option, .shift])
                         .disabled(session.document == nil || !applicationDelegate.projects.canStart)
@@ -82,6 +83,7 @@ struct CompositorApp: App {
                 Group {
                     CommandGroup(after: .appInfo) {
                         Button("Check for Updates…") { applicationDelegate.updater.checkForUpdates(nil) }
+                        AssistantControlItem()
                     }
                     CommandGroup(after: .toolbar) {
                         Button("Fit Canvas") { session.fit() }.configuredKeyboardShortcut("0").disabled(session.document == nil)
@@ -97,6 +99,7 @@ struct CompositorApp: App {
                         Toggle("Show Transform Controls", isOn: Binding(get: { session.showsTransformControls },
                                                                           set: { session.showsTransformControls = $0 }))
                             .configuredKeyboardShortcut("h").disabled(session.tool != .move || session.document == nil)
+                        TilePreviewItem(session: session)
                         Group {
                             Divider()
                             Menu("Show") {
@@ -220,6 +223,7 @@ struct CompositorApp: App {
                         .disabled(!session.canModifySelection)
                     Button("Feather…") { session.promptSelectionAmount(.feather) }
                         .disabled(!session.canModifySelection)
+                    ColorRangeItem(session: session)
                 }
                 CommandMenu("Image") {
                     Button("Curves…") { session.beginFilter(.curves) }
@@ -236,6 +240,7 @@ struct CompositorApp: App {
                         .configuredKeyboardShortcut("i")
                         .disabled(!session.canInvert)
                     Divider()
+                    ForkImageItems(session: session)
                     Button("Canvas Size…") { Task { await applicationDelegate.projects.canvasSize() } }
                         .configuredKeyboardShortcut("c", modifiers: [.command, .option])
                         .disabled(session.document == nil || !applicationDelegate.projects.canStart)

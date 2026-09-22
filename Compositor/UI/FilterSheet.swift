@@ -76,11 +76,41 @@ struct FilterSheet: View {
             case .contentAwareFill:
                 Text("Fill the selection using surrounding pixels from this layer.")
                     .fixedSize(horizontal: false, vertical: true)
+            case .threshold, .posterize, .vibrance, .photoFilter:
+                ColorAdjustmentControls(kind: edit?.kind ?? .threshold,
+                                        settings: Binding(get: { settings.color }, set: { new in update { $0.color = new } }))
+            case .offset:
+                control("Horizontal", \.offsetHorizontal, range: -100...100, unit: "%", decimals: 0, logarithmic: false)
+                control("Vertical", \.offsetVertical, range: -100...100, unit: "%", decimals: 0, logarithmic: false)
+                note("Pixels that leave one edge return at the other. 50% brings a texture's seams to the middle.")
+            case .makeTileable:
+                control("Seam Band", \.tileBand, range: 2...40, unit: "%", decimals: 0, logarithmic: false)
+                control("Even Lighting", \.tileLighting, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                note("Rebuilds a band over the seams so the layer repeats cleanly. Best on even surfaces such as stone, soil or fabric; check the result with View > Tile Preview.")
+            case .evenLighting:
+                control("Strength", \.lightingStrength, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                note("Flattens broad light and shade toward the layer's average color, keeping the detail.")
+            case .highPass:
+                control("Radius", \.highPassRadius, range: 0.1...250, unit: "px", decimals: 1, logarithmic: true)
+            case .unsharpMask:
+                control("Amount", \.sharpenAmount, range: 1...500, unit: "%", decimals: 0, logarithmic: true)
+                control("Radius", \.sharpenRadius, range: 0.1...250, unit: "px", decimals: 1, logarithmic: true)
+                control("Threshold", \.sharpenThreshold, range: 0...255, unit: "", decimals: 0, logarithmic: false)
+            case .normalMap:
+                control("Strength", \.normalStrength, range: 0.1...50, unit: "", decimals: 1, logarithmic: true)
+                Toggle("Green points down (Unreal, DirectX)", isOn: flag(\.normalYDown))
+                Toggle("Wrap at the edges (tiling texture)", isOn: flag(\.normalWrap))
+                note("Reads brightness as height: white is high. Godot, Unity and Blender expect green pointing up.")
+            case .clouds:
+                control("Scale", \.cloudCells, range: 1...64, unit: "", decimals: 0, logarithmic: true)
+                note("Soft gray noise that tiles. Color it afterwards with Gradient Map.")
             case .gaussianBlur:
                 control("Radius", \.radius, range: 0.1...250, unit: "px", decimals: 1, logarithmic: true)
+                Toggle("Keep edges solid", isOn: flag(\.keepEdges))
             case .motionBlur:
                 control("Angle", \.angle, range: -90...90, unit: "°", decimals: 0, logarithmic: false)
                 control("Distance", \.distance, range: 1...2000, unit: "px", decimals: 0, logarithmic: true)
+                Toggle("Keep edges solid", isOn: flag(\.keepEdges))
             case .addNoise:
                 control("Amount", \.amount, range: 0.1...400, unit: "%", decimals: 1, logarithmic: true)
                 Picker("Distribution", selection: flag(\.gaussian)) {
@@ -125,6 +155,10 @@ struct FilterSheet: View {
         .onChange(of: session.colorPicker?.color) { _, _ in session.previewGradientMapColor() }
     }
 
+    /// A line of guidance under a filter's controls.
+    private func note(_ text: String) -> some View {
+        Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
     private func flag(_ key: WritableKeyPath<FilterSettings, Bool>) -> Binding<Bool> {
         Binding(get: { settings[keyPath: key] }, set: { value in update { $0[keyPath: key] = value } })
     }

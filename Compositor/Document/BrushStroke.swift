@@ -126,6 +126,12 @@ final class BrushStroke {
     private var allocatedBounds: CGRect?
     private var previous: CGPoint?
     private var samples: [CGPoint] = []
+    /// The tip's size at each sample, as a fraction of the brush's diameter; all 1 unless the stroke follows a pen.
+    private var scales: [CGFloat] = []
+    /// The tip's size where the last dab run ended, and where the one being walked is heading.
+    private var scaleAtPrevious: CGFloat = 1, scaleAtTarget: CGFloat = 1
+    /// Lightest touch to full pressure: the tip never vanishes, so a stroke always starts somewhere.
+    static func tipScale(forPressure pressure: CGFloat) -> CGFloat { 0.15 + 0.85 * min(1, max(0, pressure)) }
     /// Coverage under the provisional tail; nil where the tile had no coverage yet.
     private var tailBackup: [Int: CGImage?] = [:]
     private var distanceToNext: CGFloat = 0
@@ -146,8 +152,10 @@ final class BrushStroke {
     private var dirtyTiles: [Int: CGRect] = [:]
     var patches: [BrushPatch] { tiles.values.compactMap { tile in tile.image.map { BrushPatch(rect: tile.rect, image: $0) } } }
 
-    init(layer: ImageLayer, mask: Bool, settings: BrushSettings, canvas: CGSize, useGPU: Bool = true) throws {
-        gpu = useGPU ? MetalBrushCoverage.shared : nil
+    /// `followsPressure` is for a pen: each sample's pressure sets the tip's size along the stroke. The GPU sweeps a
+    /// tip of one size, so such a stroke is laid as dabs instead, which can each be a different size.
+    init(layer: ImageLayer, mask: Bool, settings: BrushSettings, canvas: CGSize, useGPU: Bool = true, followsPressure: Bool = false) throws {
+        gpu = useGPU && !followsPressure ? MetalBrushCoverage.shared : nil
         self.layer = layer
         isMask = mask
         self.settings = settings
@@ -218,21 +226,26 @@ final class BrushStroke {
     /// than straight chords. A curve piece needs the sample after it, so the newest piece
     /// is first drawn as a provisional straight tail (the stroke never trails the cursor),
     /// then erased and replaced by the curve when the next sample arrives or on `flush()`.
-    func append(_ point: CGPoint) throws {
+    func append(_ point: CGPoint, tipScale: CGFloat = 1) throws {
         guard point.x.isFinite, point.y.isFinite, abs(point.x) <= 10_000_000, abs(point.y) <= 10_000_000 else { return }
         guard samples.last != point else { return }
         if gpu != nil { try appendContinuous(point); return }
         var changed = removeTail()
-        samples.append(point)
-        if samples.count > 4 { samples.removeFirst() }
+        samples.append(point); scales.append(min(1, max(0.05, tipScale)))
+        if samples.count > 4 { samples.removeFirst(); scales.removeFirst() }
         let count = samples.count
         if count == 1 {
+            scaleAtPrevious = scales[0]; scaleAtTarget = scales[0]
             try walk(to: point, changed: &changed)
         } else if count >= 3 {
             try curve(from: samples[count - 3], to: samples[count - 2],
-                      before: samples[max(0, count - 4)], after: samples[count - 1], changed: &changed)
+                      before: samples[max(0, count - 4)], after: samples[count - 1], changed: &changed,
+                      scaleFrom: scales[count - 3], scaleTo: scales[count - 2])
         }
-        if count >= 2 { try drawTail(from: samples[count - 2], to: point, changed: &changed) }
+        if count >= 2 {
+            scaleAtTarget = scales[count - 1]
+            try drawTail(from: samples[count - 2], to: point, changed: &changed)
+        }
         try publish(changed)
     }
 
@@ -243,8 +256,9 @@ final class BrushStroke {
         let count = samples.count
         if count >= 2 {
             try curve(from: samples[count - 2], to: samples[count - 1],
-                      before: samples[max(0, count - 3)], after: samples[count - 1], changed: &changed)
-            samples = [samples[count - 1]]
+                      before: samples[max(0, count - 3)], after: samples[count - 1], changed: &changed,
+                      scaleFrom: scales[count - 2], scaleTo: scales[count - 1])
+            samples = [samples[count - 1]]; scales = [scales[count - 1]]
         }
         try publish(changed)
     }
@@ -367,9 +381,9 @@ final class BrushStroke {
                 }
             }
         }
-        let saved = (previous, distanceToNext)
+        let saved = (previous, distanceToNext, scaleAtPrevious)
         try walk(to: end, changed: &changed)
-        (previous, distanceToNext) = saved
+        (previous, distanceToNext, scaleAtPrevious) = saved
     }
 
     private func removeTail() -> Set<Int> {
@@ -388,7 +402,8 @@ final class BrushStroke {
 
     /// Centripetal Catmull–Rom between `start` and `end`: it passes through every sample
     /// without the loops or overshoot uniform splines make at uneven mouse speeds.
-    private func curve(from start: CGPoint, to end: CGPoint, before: CGPoint, after: CGPoint, changed: inout Set<Int>) throws {
+    private func curve(from start: CGPoint, to end: CGPoint, before: CGPoint, after: CGPoint, changed: inout Set<Int>,
+                       scaleFrom: CGFloat = 1, scaleTo: CGFloat = 1) throws {
         func knot(_ t: CGFloat, _ a: CGPoint, _ b: CGPoint) -> CGFloat { t + max(0.0001, sqrt(hypot(b.x - a.x, b.y - a.y))) }
         func mix(_ a: CGPoint, _ b: CGPoint, _ ta: CGFloat, _ tb: CGFloat, _ t: CGFloat) -> CGPoint {
             let wa = (tb - t) / (tb - ta), wb = (t - ta) / (tb - ta)
@@ -400,6 +415,7 @@ final class BrushStroke {
             let t = t1 + (t2 - t1) * CGFloat(index) / CGFloat(pieces)
             let a1 = mix(before, start, t0, t1, t), a2 = mix(start, end, t1, t2, t), a3 = mix(end, after, t2, t3, t)
             let b1 = mix(a1, a2, t0, t2, t), b2 = mix(a2, a3, t1, t3, t)
+            scaleAtTarget = scaleFrom + (scaleTo - scaleFrom) * CGFloat(index) / CGFloat(pieces)
             try walk(to: index == pieces ? end : mix(b1, b2, t1, t2, t), changed: &changed)
         }
     }
@@ -410,23 +426,26 @@ final class BrushStroke {
 
     /// Lays evenly spaced dabs along a straight run from the previous dab position.
     private func walk(to point: CGPoint, changed: inout Set<Int>) throws {
-        let spacing = max(0.25, settings.diameter * Self.spacingFraction(settings.hardness))
+        let fraction = Self.spacingFraction(settings.hardness)
         if let previous {
             let dx = point.x - previous.x, dy = point.y - previous.y
             let length = hypot(dx, dy)
             if length > 0 {
                 var distance = distanceToNext
                 while distance <= length {
-                    try dab(CGPoint(x: previous.x + dx * distance / length, y: previous.y + dy * distance / length), changed: &changed)
-                    distance += spacing
+                    // The tip grows or shrinks steadily along the run, and its dabs keep their spacing in proportion.
+                    let scale = scaleAtPrevious + (scaleAtTarget - scaleAtPrevious) * distance / length
+                    try dab(CGPoint(x: previous.x + dx * distance / length, y: previous.y + dy * distance / length), scale: scale, changed: &changed)
+                    distance += max(0.25, settings.diameter * scale * fraction)
                 }
                 distanceToNext = distance - length
             }
         } else {
-            try dab(point, changed: &changed)
-            distanceToNext = spacing
+            try dab(point, scale: scaleAtTarget, changed: &changed)
+            distanceToNext = max(0.25, settings.diameter * scaleAtTarget * fraction)
         }
         previous = point
+        scaleAtPrevious = scaleAtTarget
     }
 
     private func publish(_ changed: Set<Int>) throws {
@@ -498,8 +517,8 @@ final class BrushStroke {
     private static let eraseColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
     private static let healingWash = CGColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 1)
 
-    private func dab(_ point: CGPoint, changed: inout Set<Int>) throws {
-        let radius = settings.diameter / 2
+    private func dab(_ point: CGPoint, scale: CGFloat = 1, changed: inout Set<Int>) throws {
+        let radius = settings.diameter / 2 * scale
         let circle = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
         let clipped = circle.intersection(canvas)
         guard !clipped.isNull, !clipped.isEmpty else { return }
@@ -508,7 +527,8 @@ final class BrushStroke {
         // Snapped to whole pixels so the tip lands 1:1 with nothing to resample. The tip is
         // radially symmetric, so the layer's flip is harmless, and half a pixel of placement
         // sits far below what a dab's soft rim resolves.
-        let blit: CGRect? = gridTip.map { tip in
+        // The pixel-exact tip is one size; a pen's smaller dabs are drawn from the scalable stamp instead.
+        let blit: CGRect? = (scale == 1 ? gridTip : nil).map { tip in
             let center = point.applying(inverse)
             return CGRect(x: (center.x - CGFloat(tip.width) / 2).rounded(),
                           y: (center.y - CGFloat(tip.height) / 2).rounded(),

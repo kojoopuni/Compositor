@@ -171,6 +171,13 @@ import Testing
         #expect(!session.showsBusy)
         switch kind {
         case .invert: return   // filtered out above: no editor to share
+        case .threshold, .posterize, .vibrance, .photoFilter:
+            #expect(session.filterEdit?.kind == kind.filterKind)
+            var settings = try #require(session.filterEdit).settings
+            settings.color.thresholdLevel = 40; settings.color.posterizeLevels = 3; settings.color.vibrance = 50; settings.color.filterDensity = 70
+            session.updateFilter(settings, preview: true)
+            #expect(session.activeLayer?.adjustment?.color == settings.color)
+            await session.commitFilter()
         case .levels:
             let edit = try #require(session.levels)
             await edit.histogramTask?.value
@@ -227,7 +234,7 @@ import Testing
             #expect(session.levels?.settings == saved.levels)
             session.updateLevels(LevelsSettings(), preview: true)
             session.cancelLevels()
-        case .curves, .exposure, .gradientMap, .grain, .blackWhite, .colorBalance:
+        case .curves, .exposure, .gradientMap, .grain, .blackWhite, .colorBalance, .threshold, .posterize, .vibrance, .photoFilter:
             let reopened = try #require(session.filterEdit).settings
             #expect(reopened.curves == saved.curves && reopened.exposure == saved.exposure
                     && reopened.gradientMap == saved.gradientMap && reopened.grain == saved.grain

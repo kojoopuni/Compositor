@@ -1,0 +1,269 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXFileReference section */
+		38B0BC2C2E13435DB7CBD8FE /* compositor-cli */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "compositor-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7EF5984C0016777700000672 /* Exceptions for "Compositor" folder in "compositor-cli" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets.xcassets,
+				CompositorApp.swift,
+				ContentView.swift,
+				Control/ControlCommands.swift,
+				Control/ControlServer.swift,
+				Document/ProjectWorkspace.swift,
+				IO/CompositorApplicationDelegate.swift,
+				IO/ImageFileDrop.swift,
+				"IO/ProjectController+Formats.swift",
+				IO/ProjectController.swift,
+				Rendering/BrushCursorOverlay.swift,
+				Rendering/EditorCanvas.swift,
+				Rendering/SampleRingOverlay.swift,
+				Rendering/TransformOverlay.swift,
+				UI/BlendModePicker.swift,
+				UI/BrushControls.swift,
+				UI/CanvasSizeSheet.swift,
+				UI/CanvasThumbnail.swift,
+				UI/ColorAdjustmentControls.swift,
+				UI/ColorPaletteControls.swift,
+				UI/ColorPickerSheet.swift,
+				UI/CropControls.swift,
+				UI/CurvesControls.swift,
+				UI/EffectPanel.swift,
+				UI/FilterSheet.swift,
+				UI/FloatingPanel.swift,
+				UI/ForkMenus.swift,
+				UI/GradientControls.swift,
+				UI/HueSaturationSheet.swift,
+				UI/ImageSizeSheet.swift,
+				UI/JPEGExportSheet.swift,
+				UI/LassoControls.swift,
+				UI/LayerAppearanceControls.swift,
+				UI/LayerMaskMenu.swift,
+				UI/LayersPanel.swift,
+				UI/LevelsSheet.swift,
+				UI/NativeLayerList.swift,
+				UI/NavigationToolHeader.swift,
+				UI/NewCanvasSheet.swift,
+				UI/ProjectTabs.swift,
+				UI/ProjectWindowBridge.swift,
+				UI/ShapeControls.swift,
+				UI/SliderSnap.swift,
+				UI/TextPanel.swift,
+				UI/TilePreview.swift,
+				UI/ToolHeaderStyle.swift,
+				UI/TransformInspector.swift,
+			);
+			target = 830E52A4C07B75CEE9728A3D /* compositor-cli */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		E99DB0A947F5FD628C17C16A /* Compositor */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7EF5984C0016777700000672 /* Exceptions for "Compositor" folder in "compositor-cli" target */,
+			);
+			name = Compositor;
+			path = ../Compositor;
+			sourceTree = "<group>";
+		};
+		78BF915F6F2443CCF792A972 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8E194BEA3D475DC246CF963D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B17D36388CC05F11CB0C3A3D = {
+			isa = PBXGroup;
+			children = (
+				78BF915F6F2443CCF792A972 /* Sources */,
+				E99DB0A947F5FD628C17C16A /* Compositor */,
+				A95E7A3BFE5587EB29919C85 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A95E7A3BFE5587EB29919C85 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				38B0BC2C2E13435DB7CBD8FE /* compositor-cli */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		830E52A4C07B75CEE9728A3D /* compositor-cli */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C9F34C9E7CA10BB9C264CE44 /* Build configuration list for PBXNativeTarget "compositor-cli" */;
+			buildPhases = (
+				2320DBB3C2FCA6836E53FCD6 /* Sources */,
+				8E194BEA3D475DC246CF963D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E99DB0A947F5FD628C17C16A /* Compositor */,
+				78BF915F6F2443CCF792A972 /* Sources */,
+			);
+			name = "compositor-cli";
+			productName = "compositor-cli";
+			productReference = 38B0BC2C2E13435DB7CBD8FE /* compositor-cli */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FB59CEC73EE5288CCDB5E030 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+			};
+			buildConfigurationList = 9AC7D397493ED207D97F21F5 /* Build configuration list for PBXProject "CompositorCLI" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B17D36388CC05F11CB0C3A3D;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A95E7A3BFE5587EB29919C85 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				830E52A4C07B75CEE9728A3D /* compositor-cli */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2320DBB3C2FCA6836E53FCD6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E36AD1A0F66A1067AB27BFB2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_COMPILATION_MODE = singlefile;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F27BFE4CEF2E904B7B415799 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				ONLY_ACTIVE_ARCH = NO;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		B1483375A5D4E142A347C100 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				PRODUCT_NAME = "compositor-cli";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/../Compositor/Compositor-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DE5A4F4C5D2A4D3C0EC6BFB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				PRODUCT_NAME = "compositor-cli";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/../Compositor/Compositor-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9AC7D397493ED207D97F21F5 /* Build configuration list for PBXProject "CompositorCLI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E36AD1A0F66A1067AB27BFB2 /* Debug */,
+				F27BFE4CEF2E904B7B415799 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C9F34C9E7CA10BB9C264CE44 /* Build configuration list for PBXNativeTarget "compositor-cli" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1483375A5D4E142A347C100 /* Debug */,
+				DE5A4F4C5D2A4D3C0EC6BFB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = FB59CEC73EE5288CCDB5E030 /* Project object */;
+}

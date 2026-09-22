@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The fork's own update feed, deliberately empty: a fork build must never be offered upstream's release, which
+     would replace it with an app that lacks the fork's features. Fork builds are installed with Fork/build-app.sh. -->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Compositor Fork</title>
+  </channel>
+</rss>

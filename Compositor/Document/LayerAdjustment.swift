@@ -6,8 +6,13 @@ nonisolated enum AdjustmentKind: String, Codable, CaseIterable, Sendable {
     case exposure = "Exposure", gradientMap = "Gradient Map", grain = "Grain"
     case invert = "Invert"
     case blackWhite = "Black & White", colorBalance = "Color Balance"
+    case threshold = "Threshold", posterize = "Posterize", vibrance = "Vibrance", photoFilter = "Photo Filter"
     var symbol: String {
         switch self {
+        case .threshold: return "square.righthalf.filled"
+        case .posterize: return "square.stack.3d.up"
+        case .vibrance: return "sparkles"
+        case .photoFilter: return "camera.filters"
         case .curves: return "point.topleft.down.to.point.bottomright.curvepath"
         case .levels: return "slider.horizontal.3"
         case .hsv: return "circle.lefthalf.filled"
@@ -30,6 +35,10 @@ nonisolated enum AdjustmentKind: String, Codable, CaseIterable, Sendable {
         case .exposure: return .exposure
         case .gradientMap: return .gradientMap
         case .grain: return .grain
+        case .threshold: return .threshold
+        case .posterize: return .posterize
+        case .vibrance: return .vibrance
+        case .photoFilter: return .photoFilter
         // Hue/Saturation and Levels have panels of their own; Invert has nothing to set.
         case .hsv, .levels, .invert: return nil
         }
@@ -52,6 +61,11 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
     var exposureSettings: ExposureSettings?
     var gradientMapSettings: GradientMapSettings?
     var grainSettings: GrainSettings?
+    var colorSettings: ColorAdjustments?
+    var color: ColorAdjustments {
+        get { colorSettings ?? ColorAdjustments() }
+        set { colorSettings = newValue }
+    }
     var blackWhiteSettings: BlackWhiteSettings?
     var colorBalanceSettings: ColorBalanceSettings?
     var exposure: ExposureSettings {
@@ -82,7 +96,7 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
         }
         && resolvedHSV.bands.values.allSatisfy { $0.handles.allSatisfy { $0.isFinite } }
         && levels.ranges.count == 4 && levels.ranges.allSatisfy { $0 == $0.normalized } && curves.isValid
-        && exposure.isValid && gradientMap.isValid && grain.isValid && blackWhite.isValid && colorBalance.isValid
+        && exposure.isValid && gradientMap.isValid && grain.isValid && blackWhite.isValid && colorBalance.isValid && color.isValid
     }
     /// `region` is the part of the document `image` covers (the whole image at one unit per pixel when
     /// omitted), so Grain's pattern stays fixed in the document however the canvas splits its drawing.
@@ -96,6 +110,7 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
         case .curves: return try curves.apply(image)
         case .blackWhite: return try blackWhite.apply(image)
         case .colorBalance: return try colorBalance.apply(image)
+        case .threshold, .posterize, .vibrance, .photoFilter: return try color.apply(kind.filterKind ?? .threshold, to: image)
         case .exposure: return try exposure.apply(image)
         case .gradientMap: return try gradientMap.apply(image)
         case .grain:
